@@ -1,0 +1,20 @@
+# Entorno virtual
+venv/
+__pycache__/
+*.pyc
+
+# Datos y Pesos (Archivos pesados del proyecto)
+data/raw/
+data/processed/
+models_weights/
+*.h5
+*.pth
+*.pkl
+
+# Variables de entorno (Seguridad)
+.env
+
+# Archivos de sistema y editores
+.vscode/
+.idea/
+.DS_Store
