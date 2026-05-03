@@ -8,7 +8,14 @@
 * [cite_start]**Predicción:** Modelos de series temporales para reducción de quiebres de stock (MAPE < 20%)[cite: 5].
 
 ## 🛠️ Estructura del Proyecto
-* [cite_start]`src/`: Código fuente de la API (FastAPI)[cite: 7].
-* [cite_start]`notebooks/`: Experimentación CRISP-DM y entrenamiento de modelos.
+* `src/`: Código fuente de la API (FastAPI).
+* `notebooks/`: Experimentación CRISP-DM y entrenamiento de modelos.
 * `data/`: Datasets de entrenamiento y validación (locales).
 * `models_weights/`: Pesos de los modelos entrenados.
+
+## Inicio
+* `python -m venv venv`
+* `.\venv\Scripts\activate`
+
+* `pip install --upgrade pip`
+* `pip install -r requirements.txt`
