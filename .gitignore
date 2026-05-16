@@ -18,3 +18,5 @@ models_weights/
 .vscode/
 .idea/
 .DS_Store
+
+notebooks/extraction/temp_preview_visor.png
