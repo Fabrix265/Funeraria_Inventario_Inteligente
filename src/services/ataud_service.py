@@ -1,7 +1,7 @@
 from sqlmodel import Session, select, col
 from fastapi import HTTPException
 from typing import Optional
-from src.models.ataud import Ataud, TipoAtaud
+from src.models.ataud import Ataud
 from src.schemas.ataud import AtaudCrear, AtaudModificar
 
 class AtaudService:
@@ -18,8 +18,7 @@ class AtaudService:
         db: Session, 
         modelo: Optional[str] = None, 
         color: Optional[str] = None,
-        stock_min: Optional[int] = None,
-        tipo: Optional[TipoAtaud] = None
+        stock_min: Optional[int] = None
     ):
         statement = select(Ataud)
         
@@ -29,8 +28,6 @@ class AtaudService:
             statement = statement.where(col(Ataud.color).ilike(f"%{color}%"))
         if stock_min is not None:
             statement = statement.where(Ataud.stock >= stock_min)
-        if tipo:
-            statement = statement.where(Ataud.tipo == tipo)
             
         return db.exec(statement).all()
 

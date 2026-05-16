@@ -33,10 +33,8 @@ class Servicio(SQLModel, table=True):
     direccion_velacion: str = Field(nullable=False, max_length=200)
     tipo_pago: TipoPago = Field(nullable=False, index=True)
     costo: Decimal = Field(default=0.0, decimal_places=2)
-    arreglo_flora: bool = Field(default=False)
     fecha: date = Field(nullable=False, index=True)
     cantidad_cargadores: Optional[int] = Field(default=None)
-    director_sepelio: bool = Field(default=False)
 
     # Relaciones
     usuario: "User" = Relationship(back_populates="servicios")

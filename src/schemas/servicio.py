@@ -6,6 +6,11 @@ from decimal import Decimal
 from src.models.servicio import TipoPago
 from src.schemas.fallecido import FallecidoCrear
 from src.schemas.contratante import ContratanteCrear
+from src.schemas.fallecido import FallecidoLeer
+from src.schemas.contratante import ContratanteLeer
+from src.schemas.ataud import AtaudLeer
+from src.schemas.capilla import CapillaLeer
+from src.schemas.vehiculo import VehiculoLeer
 
 class ServicioBase(BaseModel):
     id_ataud: Optional[int] = None
@@ -13,10 +18,8 @@ class ServicioBase(BaseModel):
     direccion_velacion: str
     tipo_pago: TipoPago
     costo: Decimal = Field(ge=0, description="Costo total del servicio")
-    arreglo_flora: bool = False
     fecha: date = Field(default_factory=date.today)
     cantidad_cargadores: Optional[int] = Field(default=None) 
-    director_sepelio: bool = False
 
     @field_validator('cantidad_cargadores')
     @classmethod
@@ -36,10 +39,8 @@ class ServicioEditar(BaseModel):
     direccion_velacion: Optional[str] = None
     tipo_pago: Optional[TipoPago] = None
     costo: Optional[Decimal] = None
-    arreglo_flora: Optional[bool] = None
     fecha: Optional[date] = None
     cantidad_cargadores: Optional[int] = None
-    director_sepelio: Optional[bool] = None
     fallecido: Optional[FallecidoCrear] = None
     contratante: Optional[ContratanteCrear] = None
     ids_vehiculos: Optional[List[int]] = None
@@ -50,16 +51,14 @@ class ServicioLeerCompleto(BaseModel):
     direccion_velacion: str
     tipo_pago: str
     costo: Decimal
-    arreglo_flora: bool
     fecha: date
     cantidad_cargadores: Optional[int] = None
-    director_sepelio: bool
     
-    fallecido: Any 
-    contratante: Any
-    ataud: Optional[Any] = None
-    capilla: Any
-    vehiculos_asignados: List[Any] = [] 
+    fallecido: FallecidoLeer 
+    contratante: ContratanteLeer
+    ataud: Optional[AtaudLeer] = None
+    capilla: CapillaLeer
+    vehiculos_asignados: List[VehiculoLeer] = [] 
 
     @field_serializer('vehiculos_asignados')
     def serializar_vehiculos(self, v_list: List):

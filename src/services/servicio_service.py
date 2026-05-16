@@ -33,7 +33,7 @@ def listar_servicios(session: Session, fecha=None, nombre=None, dni=None, telefo
     if nombre:
         n_l = f"%{nombre}%"
         base_query = base_query.where(or_(Contratante.nombre.ilike(n_l), Fallecido.nombre.ilike(n_l)))
-    if dni: base_query = base_query.where(or_(Contratante.dni == dni, Fallecido.dni == dni))
+    if dni: base_query = base_query.where(Contratante.dni == dni)
     if telefono: base_query = base_query.where(Contratante.telefono == telefono)
 
     total = session.exec(select(func.count()).select_from(base_query.subquery())).one()
@@ -64,20 +64,15 @@ def crear_servicio(session: Session, datos: ServicioCrear, id_usuario: int):
         contratante = Contratante(**datos.contratante.model_dump())
         session.add(contratante); session.flush()
 
-    fallecido = session.exec(select(Fallecido).where(Fallecido.dni == datos.fallecido.dni)).first()
-    if fallecido:
-        existente = session.exec(select(Servicio).where(Servicio.id_fallecido == fallecido.id)).first()
-        if existente: raise HTTPException(status_code=400, detail="El fallecido ya tiene un servicio registrado")
-    else:
-        fallecido = Fallecido(**datos.fallecido.model_dump())
-        session.add(fallecido); session.flush()
+    fallecido = Fallecido(**datos.fallecido.model_dump())
+    session.add(fallecido); session.flush()
 
     servicio = Servicio(
         id_usuario=id_usuario, id_ataud=datos.id_ataud, id_capilla=datos.id_capilla,
         id_contratante=contratante.id, id_fallecido=fallecido.id,
         direccion_velacion=datos.direccion_velacion, tipo_pago=datos.tipo_pago,
-        costo=datos.costo, fecha=datos.fecha, arreglo_flora=datos.arreglo_flora,
-        cantidad_cargadores=datos.cantidad_cargadores, director_sepelio=datos.director_sepelio
+        costo=datos.costo, fecha=datos.fecha,
+        cantidad_cargadores=datos.cantidad_cargadores
     )
     session.add(servicio); session.flush()
 

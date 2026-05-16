@@ -6,15 +6,14 @@ from src.schemas.fallecido import FallecidoLeer, FallecidoBase
 from src.services.fallecido_service import FallecidoService
 
 fallecido_router = APIRouter()
+
 @fallecido_router.get("/", response_model=list[FallecidoLeer])
 def listar_fallecidos(
     session: SessionDep, 
     nombre: Optional[str] = Query(None, description="Filtrar por nombre"),
-    dni: Optional[str] = Query(None, description="Filtrar por DNI exacto"),
     _ = Depends(get_current_user)
 ):
-    return FallecidoService.listar_todos(session, nombre=nombre, dni=dni)
-
+    return FallecidoService.listar_todos(session, nombre=nombre)
 
 @fallecido_router.get("/{id}", response_model=FallecidoLeer)
 def obtener_fallecido(

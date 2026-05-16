@@ -8,14 +8,11 @@ class FallecidoService:
     @staticmethod
     def listar_todos(
         session: Session, 
-        nombre: Optional[str] = None, 
-        dni: Optional[str] = None
+        nombre: Optional[str] = None
     ) -> list[Fallecido]:
         query = select(Fallecido)
         if nombre:
             query = query.where(Fallecido.nombre.contains(nombre))
-        if dni:
-            query = query.where(Fallecido.dni == dni)
         return session.exec(query).all()
 
     @staticmethod
@@ -32,16 +29,6 @@ class FallecidoService:
     def actualizar(session: Session, id: int, datos: dict) -> Fallecido:
         fallecido = FallecidoService.obtener_por_id(session, id)
         
-        if "dni" in datos and datos["dni"] != fallecido.dni:
-            dni_existente = session.exec(
-                select(Fallecido).where(Fallecido.dni == datos["dni"])
-            ).first()
-            if dni_existente:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"El DNI {datos['dni']} ya pertenece a otro fallecido"
-                )
-
         for key, value in datos.items():
             setattr(fallecido, key, value)
         

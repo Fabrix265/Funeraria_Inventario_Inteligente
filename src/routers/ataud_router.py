@@ -5,7 +5,6 @@ from src.deps.db_session import SessionDep
 from src.deps.role_check import get_current_admin, get_current_user
 from src.services.ataud_service import AtaudService
 from src.schemas.ataud import AtaudLeer, AtaudCrear, AtaudModificar
-from src.models.ataud import TipoAtaud
 from src.schemas.stock import StockUpdate
 
 ataud_router = APIRouter()
@@ -16,10 +15,9 @@ def listar_ataudes(
     modelo: Optional[str] = Query(None),
     color: Optional[str] = Query(None),
     stock: Optional[int] = Query(None, description="Ver ataudes con stock mayor o igual a este número"),
-    tipo: Optional[TipoAtaud] = Query(None),
     _ = Depends(get_current_user)
 ):
-    return AtaudService.obtener_todos(db, modelo, color, stock, tipo)
+    return AtaudService.obtener_todos(db, modelo, color, stock)
 
 @ataud_router.post("/", response_model=AtaudLeer)
 def crear_ataud(

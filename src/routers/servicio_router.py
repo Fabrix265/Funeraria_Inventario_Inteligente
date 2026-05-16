@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from src.deps.db_session import SessionDep
 from src.deps.role_check import get_current_admin, get_current_user
 from src.deps.servicio_filters import filtros_servicio
