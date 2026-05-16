@@ -13,6 +13,7 @@ from src.routers.vehiculo_router import vehiculo_router
 from src.routers.servicio_router import servicio_router
 from src.routers.fallecido_router import fallecido_router
 from src.routers.contratante_router import contratante_router
+from src.routers.ia_router import ia_router
 
 app = FastAPI(
     title="Inventario Funeraria Aranzabal API",
@@ -50,3 +51,5 @@ app.include_router(servicio_router, prefix="/servicios", tags=["Servicios"])
 app.include_router(fallecido_router, prefix="/fallecidos", tags=["Fallecidos"])
 
 app.include_router(contratante_router, prefix="/contratantes", tags=["Contratantes"]) 
+
+app.include_router(ia_router, prefix="/ia", tags=["Inteligencia Artificial (VLM)"])
