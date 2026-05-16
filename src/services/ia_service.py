@@ -27,13 +27,12 @@ class QwenVLMockStrategy(ExtractorIAInterface):
                 "contratante_dni": "41632357",
                 "contratante_telefono": "962923436",
                 "fallecido_nombre": "ADELA ENRIQUEZ RIOS",
-                "direccion_velacion": "SU CASA - AV. SANTA # 1094",
+                "direccion_velacion": "AV. SANTA # 1094",
                 "tipo_pago": "mixto",
                 "ataud_modelo": "Lincol Biblia",
                 "ataud_color": None,
-                "capilla_modelo": "Capilla Iluminada",
+                "capilla_modelo": "Iluminada", 
                 "ids_vehiculos_detectados": ["porta_ataud", "porta_flores", "microbus", "auto"],
-                "amount_cargadores": 4,
                 "cantidad_cargadores": 4,
                 "costo": 4500.00
             }
@@ -45,7 +44,6 @@ class QwenVLMockStrategy(ExtractorIAInterface):
                 detail=f"Error en simulación: {str(e)}"
             )
 
-# SELECTOR DE ESTRATEGIA (CAMBIADO A MOCK DE FORMA TRANSPARENTE)
 def obtener_extractor_ia() -> ExtractorIAInterface:
     return QwenVLMockStrategy()
 
