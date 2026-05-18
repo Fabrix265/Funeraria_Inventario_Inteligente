@@ -49,39 +49,82 @@ def obtener_servicio(session: Session, servicio_id: int):
     return _get_servicio_completo(session, servicio_id)
 
 def crear_servicio(session: Session, datos: ServicioCrear, id_usuario: int):
-    capilla = session.get(Capilla, datos.id_capilla)
-    if not capilla or capilla.stock <= 0: 
-        raise HTTPException(status_code=400, detail="Capilla no disponible")
+    id_ataud_final = datos.id_ataud
+    if not id_ataud_final and datos.ataud_modelo_nuevo:
+        stmt_at = select(Ataud).where(Ataud.modelo == datos.ataud_modelo_nuevo.strip())
+        ataud_existente = session.exec(stmt_at).first()
+        if ataud_existente:
+            id_ataud_final = ataud_existente.id
+        else:
+            nuevo_ataud = Ataud(
+                modelo=datos.ataud_modelo_nuevo.strip(),
+                color=datos.color_ataud_nuevo.strip() if datos.color_ataud_nuevo else "Por definir",
+                stock=1
+            )
+            session.add(nuevo_ataud)
+            session.flush()
+            id_ataud_final = nuevo_ataud.id
 
     ataud = None
-    if datos.id_ataud:
-        ataud = session.get(Ataud, datos.id_ataud)
-        if not ataud or ataud.stock <= 0: 
+    if id_ataud_final:
+        ataud = session.get(Ataud, id_ataud_final)
+        if not ataud or ataud.stock <= 0:
             raise HTTPException(status_code=400, detail="Ataúd no disponible")
+
+    id_capilla_final = datos.id_capilla
+    if not id_capilla_final and datos.capilla_modelo_nuevo:
+        stmt_cp = select(Capilla).where(Capilla.modelo == datos.capilla_modelo_nuevo.strip())
+        capilla_existente = session.exec(stmt_cp).first()
+        if capilla_existente:
+            id_capilla_final = capilla_existente.id
+        else:
+            nueva_capilla = Capilla(
+                modelo=datos.capilla_modelo_nuevo.strip(),
+                stock=1
+            )
+            session.add(nueva_capilla)
+            session.flush()
+            id_capilla_final = nueva_capilla.id
+
+    if not id_capilla_final:
+        raise HTTPException(status_code=400, detail="Debe asignar una capilla del catálogo o ingresar un modelo nuevo")
+
+    capilla = session.get(Capilla, id_capilla_final)
+    if not capilla or capilla.stock <= 0:
+        raise HTTPException(status_code=400, detail="Capilla no disponible")
 
     contratante = session.exec(select(Contratante).where(Contratante.dni == datos.contratante.dni)).first()
     if not contratante:
         contratante = Contratante(**datos.contratante.model_dump())
-        session.add(contratante); session.flush()
+        session.add(contratante)
+        session.flush()
 
     fallecido = Fallecido(**datos.fallecido.model_dump())
-    session.add(fallecido); session.flush()
+    session.add(fallecido)
+    session.flush()
 
     servicio = Servicio(
-        id_usuario=id_usuario, id_ataud=datos.id_ataud, id_capilla=datos.id_capilla,
-        id_contratante=contratante.id, id_fallecido=fallecido.id,
-        direccion_velacion=datos.direccion_velacion, tipo_pago=datos.tipo_pago,
-        costo=datos.costo, fecha=datos.fecha,
+        id_usuario=id_usuario,
+        id_ataud=id_ataud_final,
+        id_capilla=id_capilla_final,
+        id_contratante=contratante.id,
+        id_fallecido=fallecido.id,
+        direccion_velacion=datos.direccion_velacion,
+        tipo_pago=datos.tipo_pago,
+        costo=datos.costo,
+        fecha=datos.fecha,
         cantidad_cargadores=datos.cantidad_cargadores
     )
-    session.add(servicio); session.flush()
+    session.add(servicio)
+    session.flush()
 
     for v_id in datos.ids_vehiculos:
         session.add(ServicioVehiculo(id_servicio=servicio.id, id_vehiculo=v_id))
 
     capilla.stock -= 1
-    if ataud: ataud.stock -= 1
-        
+    if ataud:
+        ataud.stock -= 1
+
     session.commit()
     return _get_servicio_completo(session, servicio.id)
 
@@ -93,6 +136,10 @@ def modificar_servicio(session: Session, servicio_id: int, datos: dict):
     v_ids = datos.pop("ids_vehiculos", None)
     nueva_capilla_id = datos.pop("id_capilla", None)
     nuevo_ataud_id = datos.pop("id_ataud", None)
+
+    datos.pop("ataud_modelo_nuevo", None)
+    datos.pop("color_ataud_nuevo", None)
+    datos.pop("capilla_modelo_nuevo", None)
 
     if f_data:
         for k, v in f_data.items():

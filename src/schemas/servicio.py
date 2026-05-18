@@ -14,7 +14,7 @@ from src.schemas.vehiculo import VehiculoLeer
 
 class ServicioBase(BaseModel):
     id_ataud: Optional[int] = None
-    id_capilla: int
+    id_capilla: Optional[int] = None
     direccion_velacion: str
     tipo_pago: TipoPago
     costo: Decimal = Field(ge=0, description="Costo total del servicio")
@@ -32,6 +32,9 @@ class ServicioCrear(ServicioBase):
     fallecido: FallecidoCrear 
     contratante: ContratanteCrear
     ids_vehiculos: List[int] = []
+    ataud_modelo_nuevo: Optional[str] = None
+    color_ataud_nuevo: Optional[str] = None
+    capilla_modelo_nuevo: Optional[str] = None
 
 class ServicioEditar(BaseModel):
     id_ataud: Optional[int] = None
