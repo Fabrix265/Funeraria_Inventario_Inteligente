@@ -9,7 +9,6 @@ from src.schemas.stock import StockUpdate
 
 ataud_router = APIRouter()
 
-# Visualización: Requiere permiso de lectura
 @ataud_router.get("/", response_model=List[AtaudLeer], dependencies=[Depends(CheckerPermisos("ataudes:leer"))])
 def listar_ataudes(
     db: SessionDep,
@@ -19,7 +18,6 @@ def listar_ataudes(
 ):
     return AtaudService.obtener_todos(db, modelo, color, stock)
 
-# Creación: Requiere permiso de escritura
 @ataud_router.post("/", response_model=AtaudLeer, dependencies=[Depends(CheckerPermisos("ataudes:crear"))])
 def crear_ataud(
     ataud_in: AtaudCrear, 
@@ -27,7 +25,6 @@ def crear_ataud(
 ):
     return AtaudService.crear(db, ataud_in)
 
-# Edición: Requiere permiso de modificación
 @ataud_router.patch("/{ataud_id}", response_model=AtaudLeer, dependencies=[Depends(CheckerPermisos("ataudes:actualizar"))])
 def modificar_ataud(
     ataud_id: int, 
@@ -36,7 +33,6 @@ def modificar_ataud(
 ):
     return AtaudService.actualizar(db, ataud_id, ataud_in)
 
-# Eliminación: Requiere permiso de eliminación
 @ataud_router.delete("/{ataud_id}", dependencies=[Depends(CheckerPermisos("ataudes:eliminar"))])
 def eliminar_ataud(
     ataud_id: int, 
@@ -44,7 +40,6 @@ def eliminar_ataud(
 ):
     return AtaudService.eliminar(db, ataud_id)
 
-# Actualizar Stock: Requiere permiso de actualización de stock
 @ataud_router.patch("/{ataud_id}/stock", response_model=AtaudLeer, dependencies=[Depends(CheckerPermisos("ataudes:actualizar_stock"))])
 def actualizar_stock_ataud(
     ataud_id: int, 

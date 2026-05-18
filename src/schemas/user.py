@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
-# Esquema para leer la información de un rol
 class RoleLeer(BaseModel):
     id: int
     nombre: str
@@ -14,11 +13,11 @@ class UserBase(BaseModel):
 
 class UserCrear(UserBase):
     password: str = Field(min_length=6)
-    role_id: int  # Ahora enviamos el ID del rol a asignar
+    role_id: int
 
 class UserLeer(UserBase):
     id: int
-    roles: List[RoleLeer] = []  # Retorna la lista de roles del usuario
+    roles: List[RoleLeer] = []
 
     class Config:
         from_attributes = True
@@ -27,10 +26,9 @@ class UserActualizarSe(BaseModel):
     username: str = Field(min_length=3, max_length=30)
     password: str = Field(min_length=6)
 
-################################
 class RoleCrear(BaseModel):
     nombre: str = Field(min_length=3, max_length=50)
-    permisos_ids: List[int] = []  # Lista de IDs de los permisos asignados
+    permisos_ids: List[int] = []
 
 class PermissionLeer(BaseModel):
     id: int

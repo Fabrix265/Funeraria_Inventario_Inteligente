@@ -5,13 +5,11 @@ from src.deps.db_session import SessionDep
 from src.models.user import Role, UserRoleLink
 
 def get_current_user(token: dict = Depends(decode_token)):
-    # Permite el paso a cualquier usuario autenticado
     return token
 
 def get_current_admin(db: SessionDep, token: dict = Depends(decode_token)):
     user_id = int(token.get("sub"))
     
-    # Buscamos en la base de datos si el usuario tiene asignado el registro de rol 'Administrador'
     statement = (
         select(Role)
         .join(UserRoleLink, UserRoleLink.role_id == Role.id)

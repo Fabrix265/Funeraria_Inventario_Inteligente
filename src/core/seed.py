@@ -98,6 +98,6 @@ def ejecutar_seeding(db: Session):
         nuevo_admin.roles.append(rol_admin)
         db.add(nuevo_admin)
         db.commit()
-        print(f"🌱 SEEDING: Usuario '{admin_username}' creado con rol Administrador.")
+        print(f" SEEDING: Usuario '{admin_username}' creado con rol Administrador.")
     else:
-        print(f"✅ SEEDING: Usuario '{admin_username}' ya existe. Sin cambios.")
+        print(f" SEEDING: Usuario '{admin_username}' ya existe. Sin cambios.")
