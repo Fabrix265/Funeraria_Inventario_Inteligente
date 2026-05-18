@@ -14,6 +14,9 @@ from src.routers.servicio_router import servicio_router
 from src.routers.fallecido_router import fallecido_router
 from src.routers.contratante_router import contratante_router
 from src.routers.ia_router import ia_router
+from src.routers.role_router import role_router
+
+from src.models.user import User, Role, Permission 
 
 app = FastAPI(
     title="Inventario Funeraria Aranzabal API",
@@ -25,7 +28,7 @@ app.middleware("http")(http_error_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Permite todos, se deberia cambiar por la URL del frontend en producción
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -37,19 +40,12 @@ def home():
     return JSONResponse(content={"message": "Funcionando"})
 
 app.include_router(auth_router, prefix="/auth", tags=["Autenticación"])
-
 app.include_router(user_router, prefix="/users", tags=["Usuarios"])
-
+app.include_router(role_router, prefix="/roles", tags=["Roles y Permisos"])
 app.include_router(ataud_router, prefix="/ataudes", tags=["Inventario - Ataúdes"])
-
 app.include_router(capilla_router, prefix="/capillas", tags=["Inventario - Capillas"])
-
 app.include_router(vehiculo_router, prefix="/vehiculos", tags=["Inventario - Vehículos"])
-
 app.include_router(servicio_router, prefix="/servicios", tags=["Servicios"])
-
 app.include_router(fallecido_router, prefix="/fallecidos", tags=["Fallecidos"])
-
-app.include_router(contratante_router, prefix="/contratantes", tags=["Contratantes"]) 
-
+app.include_router(contratante_router, prefix="/contratantes", tags=["Contratantes"])
 app.include_router(ia_router, prefix="/ia", tags=["Inteligencia Artificial (VLM)"])

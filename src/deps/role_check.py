@@ -1,14 +1,28 @@
 from fastapi import Depends, HTTPException, status
+from sqlmodel import select
 from src.core.security import decode_token
-from src.models.user import CargoEnum
-
-def get_current_admin(token: dict = Depends(decode_token)):
-    if token.get("cargo") != CargoEnum.administrador:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
-            detail="Acceso denegado: Se requiere ser Administrador"
-        )
-    return token
+from src.deps.db_session import SessionDep
+from src.models.user import Role, UserRoleLink
 
 def get_current_user(token: dict = Depends(decode_token)):
+    # Permite el paso a cualquier usuario autenticado
+    return token
+
+def get_current_admin(db: SessionDep, token: dict = Depends(decode_token)):
+    user_id = int(token.get("sub"))
+    
+    # Buscamos en la base de datos si el usuario tiene asignado el registro de rol 'Administrador'
+    statement = (
+        select(Role)
+        .join(UserRoleLink, UserRoleLink.role_id == Role.id)
+        .where(UserRoleLink.user_id == user_id)
+        .where(Role.nombre == "Administrador")
+    )
+    es_admin = db.exec(statement).first()
+    
+    if not es_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Acceso denegado: Se requiere el rol de Administrador"
+        )
     return token
