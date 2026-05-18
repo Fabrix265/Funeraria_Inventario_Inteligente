@@ -4,6 +4,9 @@ from src.models.user import Role, Permission
 from src.schemas.user import RoleCrear
 
 class RoleService:
+    @staticmethod
+    def listar_roles(db: Session):
+        return db.exec(select(Role)).all()
     
     @staticmethod
     def listar_permisos(db: Session):

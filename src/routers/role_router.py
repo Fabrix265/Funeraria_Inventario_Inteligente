@@ -18,3 +18,7 @@ def crear_nuevo_rol(rol_in: RoleCrear, db: SessionDep):
 @role_router.delete("/{role_id}", dependencies=[Depends(CheckerPermisos("usuarios:eliminar"))])
 def eliminar_rol(role_id: int, db: SessionDep):
     return RoleService.eliminar_rol(db, role_id)
+
+@role_router.get("/", response_model=List[RoleDetalleLeer], dependencies=[Depends(CheckerPermisos("usuarios:listar"))])
+def listar_roles(db: SessionDep):
+    return RoleService.listar_roles(db)
