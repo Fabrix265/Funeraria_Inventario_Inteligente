@@ -19,3 +19,6 @@
 
 * `pip install --upgrade pip`
 * `pip install -r requirements.txt`
+
+## Levantar el backend
+*  `uvicorn src.main:app --port 8000 --reload`  
