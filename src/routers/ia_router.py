@@ -5,7 +5,7 @@ from src.services.ia_service import IAService
 
 ia_router = APIRouter()
 
-@ia_router.post("/procesar-contrato", response_model=TranscripcionContratoOut, status_code=status.HTTP_200_OK)
+@ia_router.post("/procesar-contrato", status_code=status.HTTP_200_OK)
 async def procesar_contrato_con_ia(
     file: UploadFile = File(...),
     _ = Depends(decode_token)
