@@ -1,0 +1,70 @@
+{
+  "timestamp": "2026-05-18T23:26:03.401806",
+  "prompt": "Describe los elementos funerarios visibles en la imagen con el mayor detalle posible.",
+  "imagenes": [
+    {
+      "imagen": 0,
+      "n_crops": 16,
+      "ganador": "SmolVLM-256M",
+      "margen": 0.030045,
+      "Qwen2.5-VL-3B": {
+        "sim_prom": 0.6911,
+        "sim_std": 0.0767,
+        "sim_min": 0.5661,
+        "sim_max": 0.818,
+        "crops_ganados": 6,
+        "per_crop": {
+          "ataud_009": 0.6997,
+          "capilla_010": 0.7566,
+          "cargadores_013": 0.8161,
+          "carroza_011": 0.7023,
+          "carroza_flores_012": 0.749,
+          "contratante_001": 0.638,
+          "direccion_003": 0.7065,
+          "dni_contratante_007": 0.5862,
+          "fallecido_004": 0.6667,
+          "forma_pago_006": 0.818,
+          "monto_015": 0.5971,
+          "n_contrato_000": 0.7371,
+          "n_contrato_008": 0.5661,
+          "tel_contratante_002": 0.5829,
+          "vehiculos_014": 0.7236,
+          "velatorio_005": 0.7118
+        }
+      },
+      "SmolVLM-256M": {
+        "sim_prom": 0.7212,
+        "sim_std": 0.0683,
+        "sim_min": 0.5478,
+        "sim_max": 0.807,
+        "crops_ganados": 10,
+        "per_crop": {
+          "ataud_009": 0.7877,
+          "capilla_010": 0.744,
+          "cargadores_013": 0.807,
+          "carroza_011": 0.7624,
+          "carroza_flores_012": 0.7317,
+          "contratante_001": 0.7225,
+          "direccion_003": 0.7545,
+          "dni_contratante_007": 0.6202,
+          "fallecido_004": 0.7445,
+          "forma_pago_006": 0.7853,
+          "monto_015": 0.5478,
+          "n_contrato_000": 0.7501,
+          "n_contrato_008": 0.6573,
+          "tel_contratante_002": 0.697,
+          "vehiculos_014": 0.7799,
+          "velatorio_005": 0.6466
+        }
+      }
+    }
+  ],
+  "ganador_global": {
+    "alias": "SmolVLM-256M",
+    "hf_id": "HuggingFaceTB/SmolVLM-256M-Instruct",
+    "sim_prom_total": 0.7212,
+    "margen_global": 0.03,
+    "imagenes_ganadas": 1,
+    "total_imagenes": 1
+  }
+}
