@@ -28,7 +28,11 @@ def _get_servicio_completo(session: Session, servicio_id: int) -> Servicio:
     return servicio
 
 def listar_servicios(session: Session, fecha=None, nombre=None, dni=None, telefono=None, offset=0, limit=20):
-    base_query = select(Servicio).join(Contratante, Servicio.id_contratante == Contratante.id).join(Fallecido, Servicio.id_fallecido == Fallecido.id)
+    base_query = (
+        select(Servicio)
+        .join(Contratante, Servicio.id_contratante == Contratante.id)
+        .join(Fallecido, Servicio.id_fallecido == Fallecido.id)
+    )
     if fecha: base_query = base_query.where(Servicio.fecha == fecha)
     if nombre:
         n_l = f"%{nombre}%"
@@ -36,13 +40,28 @@ def listar_servicios(session: Session, fecha=None, nombre=None, dni=None, telefo
     if dni: base_query = base_query.where(Contratante.dni == dni)
     if telefono: base_query = base_query.where(Contratante.telefono == telefono)
 
-    total = session.exec(select(func.count()).select_from(base_query.subquery())).one()
+    count_query = (
+        select(func.count(Servicio.id))
+        .join(Contratante, Servicio.id_contratante == Contratante.id)
+        .join(Fallecido, Servicio.id_fallecido == Fallecido.id)
+    )
+    if fecha: count_query = count_query.where(Servicio.fecha == fecha)
+    if nombre:
+        n_l = f"%{nombre}%"
+        count_query = count_query.where(or_(Contratante.nombre.ilike(n_l), Fallecido.nombre.ilike(n_l)))
+    if dni: count_query = count_query.where(Contratante.dni == dni)
+    if telefono: count_query = count_query.where(Contratante.telefono == telefono)
+
+    total = session.exec(count_query).one()
+
     statement = base_query.options(
-        selectinload(Servicio.fallecido), selectinload(Servicio.contratante),
-        selectinload(Servicio.ataud), selectinload(Servicio.capilla),
+        selectinload(Servicio.fallecido),
+        selectinload(Servicio.contratante),
+        selectinload(Servicio.ataud),
+        selectinload(Servicio.capilla),
         selectinload(Servicio.vehiculos_asignados).selectinload(ServicioVehiculo.vehiculo)
     ).offset(offset).limit(limit)
-    
+
     return {"total": total, "offset": offset, "limit": limit, "data": session.exec(statement).all()}
 
 def obtener_servicio(session: Session, servicio_id: int):
