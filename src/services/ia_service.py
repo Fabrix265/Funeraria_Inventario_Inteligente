@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any
 
 import torch
-from PIL import Image
+from PIL import Image, ImageOps, ImageFilter
 Image.MAX_IMAGE_PIXELS = None
 
 from fastapi import HTTPException, status
@@ -27,34 +27,34 @@ ZONA 1 - MEMBRETE (IGNORAR para extracción de datos):
 ZONA 2 - CUERPO DEL CONTRATO (ÚNICA fuente válida):
 - Empieza donde dice "CONTRATO" y tiene campos con líneas para rellenar.
 - Campos escritos a mano o mecanografiados por el cliente:
-  * "Trujillo, __ de __ del 20__" → fecha
-  * "Señor(a):" → contratante_nombre
-  * "Teléfono:" → contratante_telefono (junto al nombre del contratante)
-  * "Doc. Identidad:" → contratante_dni
-  * "Dirección:" → direccion_velacion (dirección del cliente/velatorio, NO de la empresa)
-  * "Oxiso:" o "Occiso:" → fallecido_nombre
-  * "Velatorio:" → puede complementar direccion_velacion si dice "SU CASA" u otro lugar
-  * "Forma de Pago:" → tipo_pago
-  * Tabla "COSTO DEL SERVICIO": filas Ataúd, Capilla ardiente, Carroza, Carroza para flores, Cargadores → extraer modelo/descripción y cantidades
-  * "TOTAL" al pie → costo
+* "Trujillo, __ de __ del 20__" → fecha
+* "Señor(a):" → contratante_nombre
+* "Teléfono:" → contratante_telefono (junto al nombre del contratante)
+* "Doc. Identidad:" → contratante_dni
+* "Dirección:" → direccion_velacion (dirección del cliente/velatorio, NO de la empresa)
+* "Oxiso:" o "Occiso:" → fallecido_nombre
+* "Velatorio:" → puede complementar direccion_velacion si dice "SU CASA" u otro lugar
+* "Forma de Pago:" → tipo_pago
+* Tabla "COSTO DEL SERVICIO": filas Ataúd, Capilla ardiente, Carroza, Carroza para flores, Cargadores → extraer modelo/descripción y cantidades
+* "TOTAL" al pie → costo
 
 REGLAS ESTRICTAS:
 - Devuelve ÚNICAMENTE el JSON sin ningún texto adicional, sin markdown, sin ```.
 - Lee cada campo con atención, no inventes datos.
 - Para "tipo_pago" usa SOLO una de estas palabras exactas: directo, seguro, mixto.
-  Si dice "al contado", "efectivo", "dinero", "cheque" usa "directo".
-  Si dice "seguro", "aseguradora" usa "seguro".
-  Si es combinación usa "mixto". Si no está claro usa null.
+Si dice "al contado", "efectivo", "dinero", "cheque" usa "directo".
+Si dice "seguro", "aseguradora" usa "seguro".
+Si es combinación usa "mixto". Si no está claro usa null.
 - Para "ids_vehiculos_detectados" usa SOLO estos valores exactos: porta_ataud, porta_flores, mixto, auto, microbus.
-  Detecta si hay descripción escrita en las filas "Carroza" (→ porta_ataud) y "Carroza para flores" (→ porta_flores).
-  Si no hay nada escrito en esas filas, usa [].
+Detecta si hay descripción escrita en las filas "Carroza" (→ porta_ataud) y "Carroza para flores" (→ porta_flores).
+Si no hay nada escrito en esas filas, usa [].
 - Para "cantidad_cargadores" lee la fila "Cargadores" de la tabla. Solo acepta 4, 6 o null.
 - Para "fecha" combina día, mes y año escritos en el campo "Trujillo, __ de __ del 20__". Formato YYYY-MM-DD.
 - Para "contratante_dni" lee el campo "Doc. Identidad:" del cuerpo del contrato. Extrae exactamente 8 dígitos. Si no son 8 dígitos usa null.
 - Para "contratante_telefono" lee el campo "Teléfono:" que está en la misma línea o muy cerca del campo "Señor(a):".
-  IGNORA los teléfonos del membrete superior de la empresa (044-679338, 943441226, 980494319, 044-564963).
+IGNORA los teléfonos del membrete superior de la empresa (044-679338, 943441226, 980494319, 044-564963).
 - Para "direccion_velacion" lee ÚNICAMENTE el campo etiquetado como "Dirección:" en el cuerpo del contrato.
-  El campo "Velatorio:" es DIFERENTE y debe ser IGNORADO completamente para este dato.
+El campo "Velatorio:" es DIFERENTE y debe ser IGNORADO completamente para este dato.
 - Para "ataud_modelo" lee la descripción escrita en la fila "Ataúd" de la tabla COSTO DEL SERVICIO.
 - Para "ataud_color" extrae el color si está mencionado junto al modelo del ataúd.
 - Para "capilla_modelo" lee la descripción escrita en la fila "Capilla ardiente".
@@ -63,35 +63,53 @@ REGLAS ESTRICTAS:
 
 Estructura JSON exacta:
 {
-  "fecha": "YYYY-MM-DD o null",
-  "contratante_nombre": "nombre completo en mayusculas o null",
-  "contratante_dni": "exactamente 8 digitos o null",
-  "contratante_telefono": "solo digitos sin guiones ni espacios o null",
-  "fallecido_nombre": "nombre completo en mayusculas o null",
-  "direccion_velacion": "valor del campo Direccion del contrato o null",
-  "tipo_pago": "directo o seguro o mixto o null",
-  "ataud_modelo": "descripcion escrita en fila Ataud de la tabla o null",
-  "ataud_color": "color del ataud o null",
-  "capilla_modelo": "descripcion escrita en fila Capilla ardiente o null",
-  "ids_vehiculos_detectados": [],
-  "cantidad_cargadores": null,
-  "costo": 0.0
+"fecha": "YYYY-MM-DD o null",
+"contratante_nombre": "nombre completo en mayusculas o null",
+"contratante_dni": "exactamente 8 digitos o null",
+"contratante_telefono": "solo digitos sin guiones ni espacios o null",
+"fallecido_nombre": "nombre completo en mayusculas o null",
+"direccion_velacion": "valor del campo Direccion del contrato o null",
+"tipo_pago": "directo o seguro o mixto o null",
+"ataud_modelo": "descripcion escrita en fila Ataud de la tabla o null",
+"ataud_color": "color del ataud o null",
+"capilla_modelo": "descripcion escrita en fila Capilla ardiente o null",
+"ids_vehiculos_detectados": [],
+"cantidad_cargadores": null,
+"costo": 0.0
 }"""
 
 
 def preprocesar_imagen(imagen_bytes: bytes, max_dim: int = 1600) -> Image.Image:
-    imagen = Image.open(io.BytesIO(imagen_bytes)).convert("RGB")
+    imagen = Image.open(io.BytesIO(imagen_bytes))
+
+    # 1. Escala de grises → volver a RGB (modelo necesita 3 canales)
+    imagen = imagen.convert("L").convert("RGB")
     ancho, alto = imagen.size
 
-    if ancho <= max_dim and alto <= max_dim:
-        logger.info(f"Imagen {ancho}x{alto} sin redimensionar")
-        return imagen
+    # 2. Recortar márgenes vacíos
+    bbox = imagen.convert("L").getbbox()
+    if bbox:
+        imagen = imagen.crop(bbox)
+        logger.info(f"Crop márgenes: {ancho}x{alto} → {imagen.size[0]}x{imagen.size[1]}")
+        ancho, alto = imagen.size
 
-    escala = max_dim / max(ancho, alto)
-    nuevo_ancho = int(ancho * escala)
-    nuevo_alto  = int(alto  * escala)
-    logger.info(f"Redimensionando {ancho}x{alto} a {nuevo_ancho}x{nuevo_alto}")
-    return imagen.resize((nuevo_ancho, nuevo_alto), Image.Resampling.LANCZOS)
+    # 3. Redimensionar si supera max_dim
+    if ancho > max_dim or alto > max_dim:
+        escala      = max_dim / max(ancho, alto)
+        nuevo_ancho = int(ancho * escala)
+        nuevo_alto  = int(alto * escala)
+        imagen      = imagen.resize((nuevo_ancho, nuevo_alto), Image.Resampling.LANCZOS)
+        logger.info(f"Redimensionado: {ancho}x{alto} → {nuevo_ancho}x{nuevo_alto}")
+
+    # 4. Normalizar contraste
+    imagen = ImageOps.autocontrast(imagen, cutoff=1)
+    logger.info("Autocontraste aplicado")
+
+    # 5. Nitidez leve
+    imagen = imagen.filter(ImageFilter.SHARPEN)
+    logger.info("Nitidez aplicada")
+
+    return imagen
 
 
 def limpiar_y_parsear_json(contenido: str) -> Dict[str, Any]:
