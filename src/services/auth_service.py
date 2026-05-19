@@ -23,10 +23,12 @@ class AuthService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+        roles_usuario = [rol.nombre for rol in user.roles]
+
         token_data = {
             "sub": str(user.id),
             "username": user.username,
-            "cargo": user.cargo
+            "roles": roles_usuario
         }
         
         token = create_access_token(token_data)
@@ -36,6 +38,6 @@ class AuthService:
             "token_type": "bearer",
             "user": {
                 "username": user.username,
-                "cargo": user.cargo
+                "roles": roles_usuario
             }
         }

@@ -19,7 +19,7 @@ class ServicioBase(BaseModel):
     tipo_pago: TipoPago
     costo: Decimal = Field(ge=0, description="Costo total del servicio")
     fecha: date = Field(default_factory=date.today)
-    cantidad_cargadores: Optional[int] = Field(default=None) 
+    cantidad_cargadores: Optional[int] = Field(default=None)
 
     @field_validator('cantidad_cargadores')
     @classmethod
@@ -29,7 +29,7 @@ class ServicioBase(BaseModel):
         return v
 
 class ServicioCrear(ServicioBase):
-    fallecido: FallecidoCrear 
+    fallecido: FallecidoCrear
     contratante: ContratanteCrear
     ids_vehiculos: List[int] = []
     ataud_modelo_nuevo: Optional[str] = None
@@ -56,17 +56,28 @@ class ServicioLeerCompleto(BaseModel):
     costo: Decimal
     fecha: date
     cantidad_cargadores: Optional[int] = None
-    
-    fallecido: FallecidoLeer 
+
+    fallecido: FallecidoLeer
     contratante: ContratanteLeer
     ataud: Optional[AtaudLeer] = None
     capilla: CapillaLeer
-    vehiculos_asignados: List[VehiculoLeer] = [] 
+
+    # ✅ List[Any] — evita que Pydantic valide ServicioVehiculo como VehiculoLeer
+    vehiculos_asignados: List[Any] = []
 
     @field_serializer('vehiculos_asignados')
-    def serializar_vehiculos(self, v_list: List):
-        if not v_list: return []
-        return [item.vehiculo for item in v_list if hasattr(item, 'vehiculo')]
+    def serializar_vehiculos(self, v_list: List[Any]):
+        if not v_list:
+            return []
+        result = []
+        for item in v_list:
+            if hasattr(item, 'vehiculo') and item.vehiculo is not None:
+                v = item.vehiculo
+                result.append({
+                    "id": v.id,
+                    "tipo": v.tipo,
+                })
+        return result
 
     model_config = ConfigDict(from_attributes=True)
 

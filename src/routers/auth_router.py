@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordRequestForm
 from src.deps.db_session import SessionDep
 from src.services.auth_service import AuthService
