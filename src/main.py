@@ -48,4 +48,3 @@ app.include_router(vehiculo_router, prefix="/vehiculos", tags=["Inventario - Veh
 app.include_router(servicio_router, prefix="/servicios", tags=["Servicios"])
 app.include_router(fallecido_router, prefix="/fallecidos", tags=["Fallecidos"])
 app.include_router(contratante_router, prefix="/contratantes", tags=["Contratantes"])
-app.include_router(ia_router, prefix="/ia", tags=["Inteligencia Artificial (VLM)"])
