@@ -25,10 +25,17 @@ class AuthService:
 
         roles_usuario = [rol.nombre for rol in user.roles]
 
+        permisos_usuario = list(set(
+            permiso.nombre
+            for rol in user.roles
+            for permiso in rol.permisos
+        ))
+
         token_data = {
             "sub": str(user.id),
             "username": user.username,
-            "roles": roles_usuario
+            "roles": roles_usuario,
+            "permisos": permisos_usuario
         }
         
         token = create_access_token(token_data)
@@ -38,6 +45,7 @@ class AuthService:
             "token_type": "bearer",
             "user": {
                 "username": user.username,
-                "roles": roles_usuario
+                "roles": roles_usuario,
+                "permisos": permisos_usuario
             }
         }
