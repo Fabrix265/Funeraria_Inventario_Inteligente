@@ -19,11 +19,11 @@ def listar_contratantes(
 def obtener_contratante(id: int, session: SessionDep):
     return ContratanteService.obtener_por_id(session, id)
 
-@contratante_router.patch("/{id}", response_model=ContratanteLeer, dependencies=[Depends(CheckerPermisos("contratantes:gestionar"))])
+@contratante_router.patch("/{id}", response_model=ContratanteLeer, dependencies=[Depends(CheckerPermisos("contratantes:actualizar"))])
 def actualizar_contratante(id: int, datos: ContratanteBase, session: SessionDep):
     campos = datos.model_dump(exclude_unset=True)
     return ContratanteService.actualizar(session, id, campos)
 
-@contratante_router.delete("/{id}", dependencies=[Depends(CheckerPermisos("contratantes:gestionar"))])
+@contratante_router.delete("/{id}", dependencies=[Depends(CheckerPermisos("contratantes:eliminar"))])
 def eliminar(id: int, session: SessionDep):
     return ContratanteService.eliminar(session, id)
