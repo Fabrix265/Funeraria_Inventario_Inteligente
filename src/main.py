@@ -15,7 +15,7 @@ from src.routers.fallecido_router import fallecido_router
 from src.routers.contratante_router import contratante_router
 from src.routers.role_router import role_router
 
-from src.models.user import User, Role, Permission 
+from src.routers.role_router import role_router
 
 app = FastAPI(
     title="Inventario Funeraria Aranzabal API",
