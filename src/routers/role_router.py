@@ -1,15 +1,20 @@
 from fastapi import APIRouter, Depends
 from typing import List
+from sqlmodel import select
 from src.deps.db_session import SessionDep
 from src.core.security import CheckerPermisos
 from src.services.role_service import RoleService
 from src.schemas.user import RoleCrear, RoleDetalleLeer, PermissionLeer
+from src.models.user import Permission 
 
 role_router = APIRouter()
 
 @role_router.get("/permisos", response_model=List[PermissionLeer], dependencies=[Depends(CheckerPermisos("usuarios:listar"))])
 def listar_todos_los_permisos(db: SessionDep):
-    return RoleService.listar_permisos(db)
+    permisos = db.exec(
+        select(Permission).where(~Permission.nombre.startswith("usuarios:"))
+    ).all()
+    return permisos
 
 @role_router.post("/", response_model=RoleDetalleLeer, dependencies=[Depends(CheckerPermisos("usuarios:crear"))])
 def crear_nuevo_rol(rol_in: RoleCrear, db: SessionDep):
