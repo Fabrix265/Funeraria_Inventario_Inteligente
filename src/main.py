@@ -13,6 +13,7 @@ from src.routers.vehiculo_router import vehiculo_router
 from src.routers.servicio_router import servicio_router
 from src.routers.fallecido_router import fallecido_router
 from src.routers.contratante_router import contratante_router
+from src.routers.role_router import role_router
 
 from src.routers.role_router import role_router
 
