@@ -32,9 +32,13 @@ def ejecutar_seeding(db: Session):
         {"nombre": "servicios:eliminar",  "descripcion": "Eliminar servicios"},
 
         {"nombre": "fallecidos:leer",       "descripcion": "Ver registros de fallecidos"},
-        {"nombre": "fallecidos:gestionar",  "descripcion": "Crear y editar registros de fallecidos"},
+        {"nombre": "fallecidos:crear",       "descripcion": "Crear registros de fallecidos"},
+        {"nombre": "fallecidos:actualizar",  "descripcion": "Editar registros de fallecidos"},
+        {"nombre": "fallecidos:eliminar",    "descripcion": "Eliminar registros de fallecidos"},
         {"nombre": "contratantes:leer",     "descripcion": "Ver registros de contratantes"},
-        {"nombre": "contratantes:gestionar","descripcion": "Crear y editar registros de contratantes"},
+        {"nombre": "contratantes:crear",     "descripcion": "Crear registros de contratantes"},
+        {"nombre": "contratantes:actualizar","descripcion": "Editar registros de contratantes"},
+        {"nombre": "contratantes:eliminar",  "descripcion": "Eliminar registros de contratantes"},
     ]
 
     permisos_db = []
@@ -67,9 +71,11 @@ def ejecutar_seeding(db: Session):
         "servicios:crear",
         "servicios:actualizar",
         "fallecidos:leer",
-        "fallecidos:gestionar",
+        "fallecidos:crear",
+        "fallecidos:actualizar",
         "contratantes:leer",
-        "contratantes:gestionar",
+        "contratantes:crear",
+        "contratantes:actualizar",
     ]
     permisos_trabajador = [
         db.exec(select(Permission).where(Permission.nombre == n)).first()
