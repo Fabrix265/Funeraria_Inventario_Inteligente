@@ -47,3 +47,5 @@ app.include_router(vehiculo_router, prefix="/vehicles", tags=["Inventario - Veh√
 app.include_router(servicio_router, prefix="/services", tags=["Servicios"])
 app.include_router(fallecido_router, prefix="/deceased", tags=["Fallecidos"])
 app.include_router(contratante_router, prefix="/contractors", tags=["Contratantes"])
+
+#build
