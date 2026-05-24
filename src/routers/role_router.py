@@ -7,7 +7,7 @@ from src.schemas.user import RoleCrear, RoleDetalleLeer, PermissionLeer
 
 role_router = APIRouter()
 
-@role_router.get("/permisos", response_model=List[PermissionLeer], dependencies=[Depends(CheckerPermisos("usuarios:listar"))])
+@role_router.get("/permits", response_model=List[PermissionLeer], dependencies=[Depends(CheckerPermisos("usuarios:listar"))])
 def listar_todos_los_permisos(db: SessionDep):
     return RoleService.listar_permisos(db)
 
