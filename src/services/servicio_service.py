@@ -4,7 +4,6 @@ from fastapi import HTTPException
 
 from src.models.servicio import Servicio
 from src.models.servicio_vehiculo import ServicioVehiculo
-from src.models.fallecido import Fallecido
 from src.models.contratante import Contratante
 from src.models.ataud import Ataud
 from src.models.capilla import Capilla
@@ -15,7 +14,6 @@ def _get_servicio_completo(session: Session, servicio_id: int) -> Servicio:
         select(Servicio)
         .where(Servicio.id == servicio_id)
         .options(
-            selectinload(Servicio.fallecido),
             selectinload(Servicio.contratante),
             selectinload(Servicio.ataud),
             selectinload(Servicio.capilla),
@@ -31,31 +29,28 @@ def listar_servicios(session: Session, fecha=None, nombre=None, dni=None, telefo
     base_query = (
         select(Servicio)
         .join(Contratante, Servicio.id_contratante == Contratante.id)
-        .join(Fallecido, Servicio.id_fallecido == Fallecido.id)
     )
     if fecha: base_query = base_query.where(Servicio.fecha == fecha)
     if nombre:
         n_l = f"%{nombre}%"
-        base_query = base_query.where(or_(Contratante.nombre.ilike(n_l), Fallecido.nombre.ilike(n_l)))
+        base_query = base_query.where(or_(Contratante.nombre.ilike(n_l), Servicio.fallecido_nombre.ilike(n_l)))
     if dni: base_query = base_query.where(Contratante.dni == dni)
     if telefono: base_query = base_query.where(Contratante.telefono == telefono)
 
     count_query = (
         select(func.count(Servicio.id))
         .join(Contratante, Servicio.id_contratante == Contratante.id)
-        .join(Fallecido, Servicio.id_fallecido == Fallecido.id)
     )
     if fecha: count_query = count_query.where(Servicio.fecha == fecha)
     if nombre:
         n_l = f"%{nombre}%"
-        count_query = count_query.where(or_(Contratante.nombre.ilike(n_l), Fallecido.nombre.ilike(n_l)))
+        count_query = count_query.where(or_(Contratante.nombre.ilike(n_l), Servicio.fallecido_nombre.ilike(n_l)))
     if dni: count_query = count_query.where(Contratante.dni == dni)
     if telefono: count_query = count_query.where(Contratante.telefono == telefono)
 
     total = session.exec(count_query).one()
 
     statement = base_query.options(
-        selectinload(Servicio.fallecido),
         selectinload(Servicio.contratante),
         selectinload(Servicio.ataud),
         selectinload(Servicio.capilla),
@@ -118,16 +113,12 @@ def crear_servicio(session: Session, datos: ServicioCrear, id_usuario: int):
         session.add(contratante)
         session.flush()
 
-    fallecido = Fallecido(**datos.fallecido.model_dump())
-    session.add(fallecido)
-    session.flush()
-
     servicio = Servicio(
         id_usuario=id_usuario,
         id_ataud=id_ataud_final,
         id_capilla=id_capilla_final,
         id_contratante=contratante.id,
-        id_fallecido=fallecido.id,
+        fallecido_nombre=datos.fallecido_nombre,
         direccion_velacion=datos.direccion_velacion,
         tipo_pago=datos.tipo_pago,
         costo=datos.costo,
@@ -150,7 +141,6 @@ def crear_servicio(session: Session, datos: ServicioCrear, id_usuario: int):
 def modificar_servicio(session: Session, servicio_id: int, datos: dict):
     servicio = _get_servicio_completo(session, servicio_id)
 
-    f_data = datos.pop("fallecido", None)
     c_data = datos.pop("contratante", None)
     v_ids = datos.pop("ids_vehiculos", None)
     nueva_capilla_id = datos.pop("id_capilla", None)
@@ -160,11 +150,6 @@ def modificar_servicio(session: Session, servicio_id: int, datos: dict):
     datos.pop("color_ataud_nuevo", None)
     datos.pop("capilla_modelo_nuevo", None)
 
-    if f_data:
-        for k, v in f_data.items():
-            if hasattr(servicio.fallecido, k) and k != "id":
-                setattr(servicio.fallecido, k, v)
-    
     if c_data:
         for k, v in c_data.items():
             if hasattr(servicio.contratante, k) and k != "id":
@@ -218,12 +203,9 @@ def eliminar_servicio(session: Session, servicio_id: int):
         ataud = session.get(Ataud, servicio.id_ataud)
         if ataud: ataud.stock += 1
 
-    fid, cid = servicio.id_fallecido, servicio.id_contratante
+    cid = servicio.id_contratante
     session.exec(delete(ServicioVehiculo).where(ServicioVehiculo.id_servicio == servicio_id))
     session.delete(servicio); session.flush()
-    
-    fallecido = session.get(Fallecido, fid)
-    if fallecido: session.delete(fallecido)
     
     if not session.exec(select(Servicio).where(Servicio.id_contratante == cid)).first():
         contratante = session.get(Contratante, cid)

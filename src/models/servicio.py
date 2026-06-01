@@ -8,9 +8,7 @@ if TYPE_CHECKING:
     from src.models.user import User
     from src.models.ataud import Ataud
     from src.models.capilla import Capilla
-    from src.models.fallecido import Fallecido
     from src.models.contratante import Contratante
-    from src.models.vehiculo import Vehiculo
 
 from src.models.servicio_vehiculo import ServicioVehiculo
 
@@ -27,9 +25,9 @@ class Servicio(SQLModel, table=True):
     id_ataud: Optional[int] = Field(default=None, foreign_key="ataud.id")
     id_capilla: int = Field(foreign_key="capilla.id", nullable=False)
     id_contratante: int = Field(foreign_key="contratante.id", nullable=False)
-    id_fallecido: int = Field(foreign_key="fallecido.id", nullable=False, unique=True)
-    
+
     # Datos
+    fallecido_nombre: str = Field(nullable=False, max_length=100)
     direccion_velacion: str = Field(nullable=False, max_length=200)
     tipo_pago: TipoPago = Field(nullable=False, index=True)
     costo: Decimal = Field(default=0.0, decimal_places=2)
@@ -51,11 +49,7 @@ class Servicio(SQLModel, table=True):
         back_populates="servicios",
         sa_relationship_kwargs={"lazy": "selectin"}
     )
-    fallecido: "Fallecido" = Relationship(
-        back_populates="servicio",
-        sa_relationship_kwargs={"lazy": "selectin"}
-    )
-    
+
     vehiculos_asignados: List["ServicioVehiculo"] = Relationship(
         back_populates="servicio",
         sa_relationship_kwargs={"lazy": "selectin"}

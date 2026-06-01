@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from src.deps.db_session import SessionDep
-from src.core.security import CheckerPermisos, decode_token
+from src.core.security import CheckerPermisos
 from src.deps.servicio_filters import filtros_servicio
 from src.schemas.servicio import ServicioCrear, ServicioEditar, ServicioLeerCompleto, ServicioPaginado
 import src.services.servicio_service as service

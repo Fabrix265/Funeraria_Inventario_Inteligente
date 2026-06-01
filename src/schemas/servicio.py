@@ -4,13 +4,10 @@ from datetime import date
 from decimal import Decimal
 
 from src.models.servicio import TipoPago
-from src.schemas.fallecido import FallecidoCrear
 from src.schemas.contratante import ContratanteCrear
-from src.schemas.fallecido import FallecidoLeer
 from src.schemas.contratante import ContratanteLeer
 from src.schemas.ataud import AtaudLeer
 from src.schemas.capilla import CapillaLeer
-from src.schemas.vehiculo import VehiculoLeer
 
 class ServicioBase(BaseModel):
     id_ataud: Optional[int] = None
@@ -29,7 +26,7 @@ class ServicioBase(BaseModel):
         return v
 
 class ServicioCrear(ServicioBase):
-    fallecido: FallecidoCrear
+    fallecido_nombre: str = Field(min_length=1, max_length=100)
     contratante: ContratanteCrear
     ids_vehiculos: List[int] = []
     ataud_modelo_nuevo: Optional[str] = None
@@ -44,25 +41,24 @@ class ServicioEditar(BaseModel):
     costo: Optional[Decimal] = None
     fecha: Optional[date] = None
     cantidad_cargadores: Optional[int] = None
-    fallecido: Optional[FallecidoCrear] = None
+    fallecido_nombre: Optional[str] = Field(None, min_length=1, max_length=100)
     contratante: Optional[ContratanteCrear] = None
     ids_vehiculos: Optional[List[int]] = None
 
 class ServicioLeerCompleto(BaseModel):
     id: int
     id_usuario: int
+    fallecido_nombre: str
     direccion_velacion: str
     tipo_pago: str
     costo: Decimal
     fecha: date
     cantidad_cargadores: Optional[int] = None
 
-    fallecido: FallecidoLeer
     contratante: ContratanteLeer
     ataud: Optional[AtaudLeer] = None
     capilla: CapillaLeer
 
-    # ✅ List[Any] — evita que Pydantic valide ServicioVehiculo como VehiculoLeer
     vehiculos_asignados: List[Any] = []
 
     @field_serializer('vehiculos_asignados')
