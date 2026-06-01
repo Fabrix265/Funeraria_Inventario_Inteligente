@@ -6,5 +6,6 @@ class Ataud(SQLModel, table=True):
     modelo: str = Field(nullable=False, max_length=100, index=True)
     color: str = Field(nullable=False, max_length=50)
     stock: int = Field(default=0, nullable=False, ge=0)
+    activo: bool = Field(default=True, index=True)
 
     servicios: List["Servicio"] = Relationship(back_populates="ataud")

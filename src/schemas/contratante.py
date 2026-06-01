@@ -10,4 +10,5 @@ class ContratanteCrear(ContratanteBase):
 
 class ContratanteLeer(ContratanteBase):
     id: int
+    activo: bool
     model_config = ConfigDict(from_attributes=True)

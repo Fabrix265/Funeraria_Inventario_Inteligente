@@ -23,6 +23,12 @@ class AuthService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+        if not user.activo:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="La cuenta está desactivada. Contacte al administrador.",
+            )
+
         roles_usuario = [rol.nombre for rol in user.roles]
 
         permisos_usuario = list(set(

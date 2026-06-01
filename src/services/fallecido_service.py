@@ -8,11 +8,19 @@ class FallecidoService:
     @staticmethod
     def listar_todos(
         session: Session, 
-        nombre: Optional[str] = None
+        nombre: Optional[str] = None,
+        dni_fallecido: Optional[str] = None,
+        activo: Optional[bool] = None,
     ) -> list[Fallecido]:
         query = select(Fallecido)
+        if activo is None:
+            query = query.where(Fallecido.activo == True)
+        else:
+            query = query.where(Fallecido.activo == activo)
         if nombre:
             query = query.where(Fallecido.nombre.contains(nombre))
+        if dni_fallecido:
+            query = query.where(Fallecido.dni_fallecido == dni_fallecido)
         return session.exec(query).all()
 
     @staticmethod
@@ -37,6 +45,15 @@ class FallecidoService:
         session.refresh(fallecido)
         return fallecido
     
+    @staticmethod
+    def cambiar_estado(session: Session, id: int, activo: bool) -> Fallecido:
+        fallecido = FallecidoService.obtener_por_id(session, id)
+        fallecido.activo = activo
+        session.add(fallecido)
+        session.commit()
+        session.refresh(fallecido)
+        return fallecido
+
     @staticmethod
     def eliminar(session: Session, id: int):
         fallecido = FallecidoService.obtener_por_id(session, id)

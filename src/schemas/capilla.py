@@ -9,4 +9,5 @@ class CapillaCrear(CapillaBase):
 
 class CapillaLeer(CapillaBase):
     id: int
+    activo: bool
     model_config = ConfigDict(from_attributes=True)

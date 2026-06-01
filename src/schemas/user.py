@@ -17,6 +17,7 @@ class UserCrear(UserBase):
 
 class UserLeer(UserBase):
     id: int
+    activo: bool
     roles: List[RoleLeer] = []
 
     class Config:

@@ -1,4 +1,5 @@
 from sqlmodel import Session, select
+from typing import Optional
 from fastapi import HTTPException, status
 from passlib.context import CryptContext
 from src.models.user import User, Role
@@ -41,8 +42,13 @@ class UserService:
             raise HTTPException(status_code=500, detail=str(e))
 
     @staticmethod
-    def obtener_usuarios(db: Session):
-        return db.exec(select(User)).all()
+    def obtener_usuarios(db: Session, activo: Optional[bool] = None):
+        query = select(User)
+        if activo is None:
+            query = query.where(User.activo == True)
+        else:
+            query = query.where(User.activo == activo)
+        return db.exec(query).all()
     
     @staticmethod
     def obtener_roles(db: Session):
@@ -70,6 +76,17 @@ class UserService:
         db_user.username = user_data.username
         db_user.password = cls.hash_password(user_data.password)
         
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        return db_user
+
+    @staticmethod
+    def cambiar_estado(db: Session, user_id: int, activo: bool) -> User:
+        db_user = db.get(User, user_id)
+        if not db_user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        db_user.activo = activo
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
