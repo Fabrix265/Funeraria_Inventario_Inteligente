@@ -14,8 +14,12 @@ class CapillaService:
         return nueva_capilla
 
     @staticmethod
-    def obtener_todas(db: Session, modelo: Optional[str] = None):
+    def obtener_todas(db: Session, modelo: Optional[str] = None, activo: Optional[bool] = None):
         statement = select(Capilla)
+        if activo is None:
+            statement = statement.where(Capilla.activo == True)
+        else:
+            statement = statement.where(Capilla.activo == activo)
         if modelo:
             statement = statement.where(col(Capilla.modelo).ilike(f"%{modelo}%"))
         return db.exec(statement).all()
@@ -56,6 +60,17 @@ class CapillaService:
             raise HTTPException(status_code=400, detail="El stock resultante no puede ser negativo")
         
         db_capilla.stock = nuevo_stock
+        db.add(db_capilla)
+        db.commit()
+        db.refresh(db_capilla)
+        return db_capilla
+
+    @staticmethod
+    def cambiar_estado(db: Session, capilla_id: int, activo: bool):
+        db_capilla = db.get(Capilla, capilla_id)
+        if not db_capilla:
+            raise HTTPException(status_code=404, detail="Capilla no encontrada")
+        db_capilla.activo = activo
         db.add(db_capilla)
         db.commit()
         db.refresh(db_capilla)

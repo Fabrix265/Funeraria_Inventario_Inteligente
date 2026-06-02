@@ -14,8 +14,12 @@ class VehiculoService:
         return nuevo_vehiculo
 
     @staticmethod
-    def obtener_todos(db: Session, tipo: Optional[TipoVehiculo] = None):
+    def obtener_todos(db: Session, tipo: Optional[TipoVehiculo] = None, activo: Optional[bool] = None):
         statement = select(Vehiculo)
+        if activo is None:
+            statement = statement.where(Vehiculo.activo == True)
+        else:
+            statement = statement.where(Vehiculo.activo == activo)
         if tipo:
             statement = statement.where(Vehiculo.tipo == tipo)
         return db.exec(statement).all()
@@ -44,3 +48,14 @@ class VehiculoService:
         db.delete(db_vehiculo)
         db.commit()
         return {"message": f"Vehículo ID {vehiculo_id} eliminado correctamente"}
+
+    @staticmethod
+    def cambiar_estado(db: Session, vehiculo_id: int, activo: bool):
+        db_vehiculo = db.get(Vehiculo, vehiculo_id)
+        if not db_vehiculo:
+            raise HTTPException(status_code=404, detail="Vehículo no encontrado")
+        db_vehiculo.activo = activo
+        db.add(db_vehiculo)
+        db.commit()
+        db.refresh(db_vehiculo)
+        return db_vehiculo

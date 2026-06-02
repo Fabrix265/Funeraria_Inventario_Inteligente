@@ -13,7 +13,9 @@ class AtaudModificar(BaseModel):
     modelo: Optional[str] = Field(None, min_length=1, max_length=100)
     color: Optional[str] = Field(None, min_length=1, max_length=50)
     stock: Optional[int] = Field(None, ge=0)
+    activo: Optional[bool] = None
 
 class AtaudLeer(AtaudBase):
     id: int
+    activo: bool
     model_config = ConfigDict(from_attributes=True)

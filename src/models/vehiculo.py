@@ -12,5 +12,6 @@ class TipoVehiculo(str, Enum):
 class Vehiculo(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     tipo: TipoVehiculo = Field(nullable=False, index=True)
+    activo: bool = Field(default=True, index=True)
     
     servicios: List["ServicioVehiculo"] = Relationship(back_populates="vehiculo")
