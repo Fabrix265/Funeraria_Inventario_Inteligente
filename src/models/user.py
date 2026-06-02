@@ -15,7 +15,7 @@ class RolePermissionLink(SQLModel, table=True):
 
 class Permission(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    nombre: str = Field(nullable=False, unique=True, index=True)  # Identificador único del permiso
+    nombre: str = Field(nullable=False, unique=True, index=True)
     descripcion: Optional[str] = Field(default=None)
 
     roles: List["Role"] = Relationship(back_populates="permisos", link_model=RolePermissionLink)
