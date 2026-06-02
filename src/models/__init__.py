@@ -6,3 +6,4 @@ from .fallecido import Fallecido
 from .contratante import Contratante
 from .servicio import Servicio
 from .servicio_vehiculo import ServicioVehiculo
+from .pasajero import Pasajero

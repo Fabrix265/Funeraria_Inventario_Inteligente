@@ -9,9 +9,14 @@ class ContratanteService:
     def listar_todos(
         session: Session, 
         nombre: Optional[str] = None, 
-        dni: Optional[str] = None
+        dni: Optional[str] = None,
+        activo: Optional[bool] = None,
     ) -> list[Contratante]:
         query = select(Contratante)
+        if activo is None:
+            query = query.where(Contratante.activo == True)
+        else:
+            query = query.where(Contratante.activo == activo)
         if nombre:
             query = query.where(Contratante.nombre.contains(nombre))
         if dni:
@@ -67,3 +72,12 @@ class ContratanteService:
         session.delete(contratante)
         session.commit()
         return {"message": "Contratante eliminado exitosamente"}
+
+    @staticmethod
+    def cambiar_estado(session: Session, id: int, activo: bool) -> Contratante:
+        contratante = ContratanteService.obtener_por_id(session, id)
+        contratante.activo = activo
+        session.add(contratante)
+        session.commit()
+        session.refresh(contratante)
+        return contratante

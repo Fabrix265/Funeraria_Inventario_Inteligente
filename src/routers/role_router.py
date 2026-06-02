@@ -9,7 +9,7 @@ from src.models.user import Permission
 
 role_router = APIRouter()
 
-@role_router.get("/permisos", response_model=List[PermissionLeer], dependencies=[Depends(CheckerPermisos("usuarios:listar"))])
+@role_router.get("/permits", response_model=List[PermissionLeer], dependencies=[Depends(CheckerPermisos("usuarios:listar"))])
 def listar_todos_los_permisos(db: SessionDep):
     permisos = db.exec(
         select(Permission).where(~Permission.nombre.startswith("usuarios:"))

@@ -6,6 +6,7 @@ from src.core.security import CheckerPermisos
 from src.services.capilla_service import CapillaService
 from src.schemas.capilla import CapillaLeer, CapillaCrear
 from src.schemas.stock import StockUpdate
+from src.schemas.estado import EstadoUpdate
 
 capilla_router = APIRouter()
 
@@ -13,8 +14,9 @@ capilla_router = APIRouter()
 def listar_capillas(
     db: SessionDep,
     modelo: Optional[str] = Query(None, description="Filtrar capillas por nombre de modelo"),
+    activo: Optional[bool] = Query(None),
 ):
-    return CapillaService.obtener_todas(db, modelo)
+    return CapillaService.obtener_todas(db, modelo, activo=activo)
 
 @capilla_router.post("/", response_model=CapillaLeer, status_code=status.HTTP_201_CREATED, dependencies=[Depends(CheckerPermisos("capillas:crear"))])
 def crear_capilla(
@@ -45,3 +47,7 @@ def actualizar_stock_capilla(
     db: SessionDep,
 ):
     return CapillaService.actualizar_stock(db, capilla_id, stock_in.cantidad)
+
+@capilla_router.patch("/{capilla_id}/status", response_model=CapillaLeer, dependencies=[Depends(CheckerPermisos("capillas:actualizar"))])
+def cambiar_estado_capilla(capilla_id: int, datos: EstadoUpdate, db: SessionDep):
+    return CapillaService.cambiar_estado(db, capilla_id, datos.activo)

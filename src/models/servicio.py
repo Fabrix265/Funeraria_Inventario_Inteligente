@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from src.models.fallecido import Fallecido
     from src.models.contratante import Contratante
     from src.models.vehiculo import Vehiculo
+    from src.models.pasajero import Pasajero
 
 from src.models.servicio_vehiculo import ServicioVehiculo
 
@@ -57,6 +58,10 @@ class Servicio(SQLModel, table=True):
     )
     
     vehiculos_asignados: List["ServicioVehiculo"] = Relationship(
+        back_populates="servicio",
+        sa_relationship_kwargs={"lazy": "selectin"}
+    )
+    pasajeros: List["Pasajero"] = Relationship(
         back_populates="servicio",
         sa_relationship_kwargs={"lazy": "selectin"}
     )

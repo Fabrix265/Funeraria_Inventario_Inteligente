@@ -13,8 +13,7 @@ from src.routers.vehiculo_router import vehiculo_router
 from src.routers.servicio_router import servicio_router
 from src.routers.fallecido_router import fallecido_router
 from src.routers.contratante_router import contratante_router
-from src.routers.role_router import role_router
-
+from src.routers.pasajero_router import pasajero_router
 from src.routers.role_router import role_router
 
 app = FastAPI(
@@ -41,9 +40,10 @@ def home():
 app.include_router(auth_router, prefix="/auth", tags=["Autenticación"])
 app.include_router(user_router, prefix="/users", tags=["Usuarios"])
 app.include_router(role_router, prefix="/roles", tags=["Roles y Permisos"])
-app.include_router(ataud_router, prefix="/ataudes", tags=["Inventario - Ataúdes"])
-app.include_router(capilla_router, prefix="/capillas", tags=["Inventario - Capillas"])
-app.include_router(vehiculo_router, prefix="/vehiculos", tags=["Inventario - Vehículos"])
-app.include_router(servicio_router, prefix="/servicios", tags=["Servicios"])
-app.include_router(fallecido_router, prefix="/fallecidos", tags=["Fallecidos"])
-app.include_router(contratante_router, prefix="/contratantes", tags=["Contratantes"])
+app.include_router(ataud_router, prefix="/coffins", tags=["Inventario - Ataúdes"])
+app.include_router(capilla_router, prefix="/chapels", tags=["Inventario - Capillas"])
+app.include_router(vehiculo_router, prefix="/vehicles", tags=["Inventario - Vehículos"])
+app.include_router(servicio_router, prefix="/services", tags=["Servicios"])
+app.include_router(fallecido_router, prefix="/deceased", tags=["Fallecidos"])
+app.include_router(contratante_router, prefix="/contractors", tags=["Contratantes"])
+app.include_router(pasajero_router, prefix="/passengers", tags=["Pasajeros"])

@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, Query
 from typing import List, Optional
 
 from src.deps.db_session import SessionDep
-from src.core.security import CheckerPermisos  # Importamos el validador dinámico granular
+from src.core.security import CheckerPermisos
 from src.services.ataud_service import AtaudService
 from src.schemas.ataud import AtaudLeer, AtaudCrear, AtaudModificar
 from src.schemas.stock import StockUpdate
+from src.schemas.estado import EstadoUpdate
 
 ataud_router = APIRouter()
 
@@ -14,9 +15,10 @@ def listar_ataudes(
     db: SessionDep,
     modelo: Optional[str] = Query(None),
     color: Optional[str] = Query(None),
-    stock: Optional[int] = Query(None, description="Ver ataudes con stock mayor o igual a este número")
+    stock: Optional[int] = Query(None, description="Ver ataudes con stock mayor o igual a este número"),
+    activo: Optional[bool] = Query(None),
 ):
-    return AtaudService.obtener_todos(db, modelo, color, stock)
+    return AtaudService.obtener_todos(db, modelo, color, stock, activo=activo)
 
 @ataud_router.post("/", response_model=AtaudLeer, dependencies=[Depends(CheckerPermisos("ataudes:crear"))])
 def crear_ataud(
@@ -47,3 +49,7 @@ def actualizar_stock_ataud(
     db: SessionDep
 ):
     return AtaudService.actualizar_stock(db, ataud_id, stock_in.cantidad)
+
+@ataud_router.patch("/{ataud_id}/status", response_model=AtaudLeer, dependencies=[Depends(CheckerPermisos("ataudes:actualizar"))])
+def cambiar_estado_ataud(ataud_id: int, datos: EstadoUpdate, db: SessionDep):
+    return AtaudService.cambiar_estado(db, ataud_id, datos.activo)

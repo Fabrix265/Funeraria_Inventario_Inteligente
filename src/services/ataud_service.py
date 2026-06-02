@@ -18,10 +18,15 @@ class AtaudService:
         db: Session, 
         modelo: Optional[str] = None, 
         color: Optional[str] = None,
-        stock_min: Optional[int] = None
+        stock_min: Optional[int] = None,
+        activo: Optional[bool] = None,
     ):
         statement = select(Ataud)
         
+        if activo is None:
+            statement = statement.where(Ataud.activo == True)
+        else:
+            statement = statement.where(Ataud.activo == activo)
         if modelo:
             statement = statement.where(col(Ataud.modelo).ilike(f"%{modelo}%"))
         if color:
@@ -66,6 +71,17 @@ class AtaudService:
             raise HTTPException(status_code=400, detail="El stock resultante no puede ser negativo")
         
         db_ataud.stock = nuevo_stock
+        db.add(db_ataud)
+        db.commit()
+        db.refresh(db_ataud)
+        return db_ataud
+
+    @staticmethod
+    def cambiar_estado(db: Session, ataud_id: int, activo: bool):
+        db_ataud = db.get(Ataud, ataud_id)
+        if not db_ataud:
+            raise HTTPException(status_code=404, detail="Ataud no encontrado")
+        db_ataud.activo = activo
         db.add(db_ataud)
         db.commit()
         db.refresh(db_ataud)
