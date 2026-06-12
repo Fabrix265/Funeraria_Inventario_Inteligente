@@ -2,7 +2,7 @@ import httpx
 import os
 from fastapi import HTTPException
 
-RENIEC_API_URL = "https://api.decolecta.com/v1/reniec/dni"  # ← nuevo endpoint
+RENIEC_API_URL = "https://api.decolecta.com/v1/reniec/dni"
 RENIEC_TOKEN   = os.getenv("RENIEC_TOKEN")
 
 class ReniecService:
@@ -21,7 +21,7 @@ class ReniecService:
                     params={"numero": dni},
                     headers={
                         "Authorization": f"Bearer {RENIEC_TOKEN}",
-                        "Accept": "application/json"   # ← recomendado por su doc
+                        "Accept": "application/json"
                     }
                 )
             except httpx.ConnectError:
