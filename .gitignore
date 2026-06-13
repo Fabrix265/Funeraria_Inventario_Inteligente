@@ -7,7 +7,9 @@ __pycache__/
 data/raw/
 data/processed/
 models_weights/
+notebooks/models/
 *.h5
+*.keras
 *.pth
 *.pkl
 
