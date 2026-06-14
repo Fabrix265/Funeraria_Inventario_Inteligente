@@ -16,9 +16,7 @@ class VehiculoService:
     @staticmethod
     def obtener_todos(db: Session, tipo: Optional[TipoVehiculo] = None, activo: Optional[bool] = None):
         statement = select(Vehiculo)
-        if activo is None:
-            statement = statement.where(Vehiculo.activo == True)
-        else:
+        if activo is not None:
             statement = statement.where(Vehiculo.activo == activo)
         if tipo:
             statement = statement.where(Vehiculo.tipo == tipo)

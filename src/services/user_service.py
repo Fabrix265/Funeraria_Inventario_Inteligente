@@ -44,9 +44,7 @@ class UserService:
     @staticmethod
     def obtener_usuarios(db: Session, activo: Optional[bool] = None):
         query = select(User)
-        if activo is None:
-            query = query.where(User.activo == True)
-        else:
+        if activo is not None:
             query = query.where(User.activo == activo)
         return db.exec(query).all()
     

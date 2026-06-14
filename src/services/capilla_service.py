@@ -16,9 +16,7 @@ class CapillaService:
     @staticmethod
     def obtener_todas(db: Session, modelo: Optional[str] = None, activo: Optional[bool] = None):
         statement = select(Capilla)
-        if activo is None:
-            statement = statement.where(Capilla.activo == True)
-        else:
+        if activo is not None:
             statement = statement.where(Capilla.activo == activo)
         if modelo:
             statement = statement.where(col(Capilla.modelo).ilike(f"%{modelo}%"))
