@@ -13,9 +13,7 @@ class FallecidoService:
         activo: Optional[bool] = None,
     ) -> list[Fallecido]:
         query = select(Fallecido)
-        if activo is None:
-            query = query.where(Fallecido.activo == True)
-        else:
+        if activo is not None:
             query = query.where(Fallecido.activo == activo)
         if nombre:
             query = query.where(Fallecido.nombre.contains(nombre))
