@@ -68,5 +68,5 @@ class PagoService:
         return pago
     
 ##
-#Para push
+#Para push y se agregó requirements
 ##
