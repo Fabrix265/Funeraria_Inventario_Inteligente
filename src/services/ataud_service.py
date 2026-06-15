@@ -23,9 +23,7 @@ class AtaudService:
     ):
         statement = select(Ataud)
         
-        if activo is None:
-            statement = statement.where(Ataud.activo == True)
-        else:
+        if activo is not None:
             statement = statement.where(Ataud.activo == activo)
         if modelo:
             statement = statement.where(col(Ataud.modelo).ilike(f"%{modelo}%"))
