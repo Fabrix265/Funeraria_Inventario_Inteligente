@@ -115,3 +115,7 @@ def ejecutar_seeding(db: Session):
         print(f" SEEDING: Usuario '{admin_username}' creado con rol Administrador.")
     else:
         print(f" SEEDING: Usuario '{admin_username}' ya existe. Sin cambios.")
+
+###
+#Para push
+###
