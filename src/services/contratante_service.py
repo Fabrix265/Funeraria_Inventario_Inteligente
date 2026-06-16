@@ -13,9 +13,7 @@ class ContratanteService:
         activo: Optional[bool] = None,
     ) -> list[Contratante]:
         query = select(Contratante)
-        if activo is None:
-            query = query.where(Contratante.activo == True)
-        else:
+        if activo is not None:
             query = query.where(Contratante.activo == activo)
         if nombre:
             query = query.where(Contratante.nombre.contains(nombre))
