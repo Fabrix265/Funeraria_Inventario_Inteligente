@@ -24,8 +24,9 @@ def listar_usuarios(
     return UserService.obtener_usuarios(db, activo=activo)
 
 @user_router.delete("/{user_id}", dependencies=[Depends(CheckerPermisos("usuarios:eliminar"))])
-def eliminar_usuario(user_id: int, db: SessionDep):
-    return UserService.eliminar_usuario(db, user_id)
+def eliminar_usuario(user_id: int, db: SessionDep, token: dict = Depends(decode_token)):
+    current_user_id = int(token.get("sub"))
+    return UserService.eliminar_usuario(db, user_id, current_user_id)
 
 @user_router.put("/me", response_model=UserLeer)
 def editar_mi_perfil(user_in: UserActualizarSe, db: SessionDep, token: dict = Depends(decode_token)):
@@ -37,5 +38,6 @@ def actualizar_usuario_como_administrador(user_id: int, user_in: UserActualizarA
     return UserService.actualizar_usuario_por_admin(db, user_id, user_in)
 
 @user_router.patch("/{user_id}/status", response_model=UserLeer, dependencies=[Depends(CheckerPermisos("usuarios:crear"))])
-def cambiar_estado_usuario(user_id: int, datos: EstadoUpdate, db: SessionDep):
-    return UserService.cambiar_estado(db, user_id, datos.activo)
+def cambiar_estado_usuario(user_id: int, datos: EstadoUpdate, db: SessionDep, token: dict = Depends(decode_token)):
+    current_user_id = int(token.get("sub"))
+    return UserService.cambiar_estado(db, user_id, datos.activo, current_user_id)
