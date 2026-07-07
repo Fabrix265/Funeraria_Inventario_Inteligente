@@ -1,8 +1,8 @@
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from typing import Optional
 from fastapi import HTTPException, status
 from passlib.context import CryptContext
-from src.models.user import User, Role
+from src.models.user import User, Role, UserRoleLink
 from src.schemas.user import UserActualizarSe, UserCrear, UserActualizarAdmin
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -53,7 +53,9 @@ class UserService:
         return db.exec(select(Role)).all()
 
     @staticmethod
-    def eliminar_usuario(db: Session, user_id: int):
+    def eliminar_usuario(db: Session, user_id: int, current_user_id: int):
+        if user_id == current_user_id:
+            raise HTTPException(status_code=400, detail="No puedes eliminar tu propia cuenta")
         db_user = db.get(User, user_id)
         if not db_user:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -80,10 +82,27 @@ class UserService:
         return db_user
 
     @staticmethod
-    def cambiar_estado(db: Session, user_id: int, activo: bool) -> User:
+    def cambiar_estado(db: Session, user_id: int, activo: bool, current_user_id: int) -> User:
+        if user_id == current_user_id:
+            raise HTTPException(status_code=400, detail="No puedes desactivar tu propia cuenta")
+
         db_user = db.get(User, user_id)
         if not db_user:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+        if not activo:
+            admin_role = db.exec(select(Role).where(Role.nombre == "Administrador")).first()
+            if admin_role:
+                count = db.exec(
+                    select(func.count()).select_from(User)
+                    .join(UserRoleLink)
+                    .where(UserRoleLink.role_id == admin_role.id)
+                    .where(User.activo == True)
+                    .where(User.id != user_id)
+                ).one()
+                if count == 0:
+                    raise HTTPException(status_code=400, detail="No puedes desactivar el último administrador activo")
+
         db_user.activo = activo
         db.add(db_user)
         db.commit()
