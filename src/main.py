@@ -13,9 +13,7 @@ from src.routers.vehiculo_router import vehiculo_router
 from src.routers.servicio_router import servicio_router
 from src.routers.fallecido_router import fallecido_router
 from src.routers.contratante_router import contratante_router
-from src.routers.pasajero_router import pasajero_router
 from src.routers.role_router import role_router
-from src.routers.pago_router import pago_router
 from src.routers.reniec_router import reniec_router
 
 app = FastAPI(
@@ -48,6 +46,4 @@ app.include_router(vehiculo_router, prefix="/vehicles", tags=["Inventario - Veh√
 app.include_router(servicio_router, prefix="/services", tags=["Servicios"])
 app.include_router(fallecido_router, prefix="/deceased", tags=["Fallecidos"])
 app.include_router(contratante_router, prefix="/contractors", tags=["Contratantes"])
-app.include_router(pasajero_router, prefix="/passengers", tags=["Pasajeros"])
-app.include_router(pago_router, prefix="/pagos", tags=["Pagos"])
 app.include_router(reniec_router, prefix="/reniec", tags=["RENIEC"])

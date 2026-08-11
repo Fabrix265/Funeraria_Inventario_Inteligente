@@ -33,7 +33,6 @@ def test_no_eliminar_fallecido_con_servicio(client, admin_headers, crear_ataud_p
             "telefono": f"9{timestamp % 100000000:08d}"
         },
         "ids_vehiculos": [],
-        "pasajeros": []
     }
 
     response = client.post("/services/", headers=admin_headers, json=servicio_data)
@@ -75,7 +74,6 @@ def test_no_eliminar_contratante_con_servicio(client, admin_headers, crear_ataud
             "telefono": f"9{timestamp % 100000000:08d}"
         },
         "ids_vehiculos": [],
-        "pasajeros": []
     }
 
     response = client.post("/services/", headers=admin_headers, json=servicio_data)
