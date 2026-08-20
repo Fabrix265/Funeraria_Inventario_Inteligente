@@ -37,7 +37,6 @@ def test_flujo_completo_servicio(client, admin_headers, crear_ataud_para_test, c
             "telefono": f"9{timestamp % 100000000:08d}"
         },
         "ids_vehiculos": [],
-        "pasajeros": []
     }
 
     # CREAR

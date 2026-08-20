@@ -11,7 +11,6 @@ from src.schemas.contratante import ContratanteLeer
 from src.schemas.ataud import AtaudLeer
 from src.schemas.capilla import CapillaLeer
 from src.schemas.vehiculo import VehiculoLeer
-from src.schemas.pasajero import PasajeroCrear, PasajeroLeer
 
 class ServicioBase(BaseModel):
     id_ataud: Optional[int] = None
@@ -36,7 +35,6 @@ class ServicioCrear(ServicioBase):
     ataud_modelo_nuevo: Optional[str] = None
     color_ataud_nuevo: Optional[str] = None
     capilla_modelo_nuevo: Optional[str] = None
-    pasajeros: Optional[List[PasajeroCrear]] = None
 
 class ServicioEditar(BaseModel):
     id_ataud: Optional[int] = None
@@ -63,7 +61,6 @@ class ServicioLeerCompleto(BaseModel):
     contratante: ContratanteLeer
     ataud: Optional[AtaudLeer] = None
     capilla: CapillaLeer
-    pasajeros: List[PasajeroLeer] = []
 
     # ✅ List[Any] — evita que Pydantic valide ServicioVehiculo como VehiculoLeer
     vehiculos_asignados: List[Any] = []

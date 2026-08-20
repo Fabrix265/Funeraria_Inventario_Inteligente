@@ -8,8 +8,7 @@ from src.models.fallecido import Fallecido
 from src.models.contratante import Contratante
 from src.models.ataud import Ataud
 from src.models.capilla import Capilla
-from src.models.vehiculo import Vehiculo, TipoVehiculo
-from src.models.pasajero import Pasajero
+from src.models.vehiculo import Vehiculo
 from src.schemas.servicio import ServicioCrear
 
 
@@ -23,23 +22,12 @@ def _get_servicio_completo(session: Session, servicio_id: int) -> Servicio:
             selectinload(Servicio.ataud),
             selectinload(Servicio.capilla),
             selectinload(Servicio.vehiculos_asignados).selectinload(ServicioVehiculo.vehiculo),
-            selectinload(Servicio.pasajeros),
         )
     )
     servicio = session.exec(statement).first()
     if not servicio:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
     return servicio
-
-
-def _vehiculos_tienen_auto_microbus(session: Session, ids_vehiculos: list[int]) -> bool:
-    if not ids_vehiculos:
-        return False
-    vehiculos = session.exec(
-        select(Vehiculo).where(Vehiculo.id.in_(ids_vehiculos))
-    ).all()
-    tipos_permitidos = {TipoVehiculo.auto, TipoVehiculo.microbus}
-    return any(v.tipo in tipos_permitidos for v in vehiculos)
 
 
 def _validar_vehiculos_activos(session: Session, ids_vehiculos: list[int]):
@@ -105,7 +93,6 @@ def listar_servicios(
         selectinload(Servicio.ataud),
         selectinload(Servicio.capilla),
         selectinload(Servicio.vehiculos_asignados).selectinload(ServicioVehiculo.vehiculo),
-        selectinload(Servicio.pasajeros),
     ).offset(offset).limit(limit)
 
     return {"total": total, "offset": offset, "limit": limit, "data": session.exec(statement).all()}
@@ -198,17 +185,6 @@ def crear_servicio(session: Session, datos: ServicioCrear, id_usuario: int):
     if ataud:
         ataud.stock -= 1
 
-    if datos.pasajeros:
-        tiene_auto_microbus = _vehiculos_tienen_auto_microbus(session, datos.ids_vehiculos)
-        if not tiene_auto_microbus:
-            raise HTTPException(
-                status_code=400,
-                detail="Solo se pueden agregar pasajeros a servicios con vehículo tipo auto o microbús"
-            )
-        for p_data in datos.pasajeros:
-            pasajero = Pasajero(id_servicio=servicio.id, **p_data.model_dump())
-            session.add(pasajero)
-
     session.commit()
     return _get_servicio_completo(session, servicio.id)
 
@@ -225,7 +201,6 @@ def modificar_servicio(session: Session, servicio_id: int, datos: dict):
     datos.pop("ataud_modelo_nuevo", None)
     datos.pop("color_ataud_nuevo", None)
     datos.pop("capilla_modelo_nuevo", None)
-    datos.pop("pasajeros", None)
 
     if f_data:
         for k, v in f_data.items():
@@ -292,7 +267,6 @@ def eliminar_servicio(session: Session, servicio_id: int):
         if ataud: ataud.stock += 1
 
     fid, cid = servicio.id_fallecido, servicio.id_contratante
-    session.exec(delete(Pasajero).where(Pasajero.id_servicio == servicio_id))
     session.exec(delete(ServicioVehiculo).where(ServicioVehiculo.id_servicio == servicio_id))
     session.delete(servicio); session.flush()
     
