@@ -3,9 +3,11 @@ from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordRequestForm
 from src.deps.db_session import SessionDep
 from src.services.auth_service import AuthService
+from src.deps.limiter import limiter
 
 auth_router = APIRouter()
 
+@limiter.limit("6/minute")
 @auth_router.post("/login")
 def login(
     db: SessionDep, 
