@@ -1,5 +1,6 @@
 import os
 import io
+import logging
 from datetime import datetime
 from typing import Optional
 from urllib.parse import urlencode
@@ -11,6 +12,8 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 from src.models.oauth_token import OAuthToken
+
+logger = logging.getLogger(__name__)
 
 
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
@@ -49,6 +52,7 @@ class GoogleDriveService:
             },
         )
         if response.status_code != 200:
+            logger.error("Error intercambiando codigo de Google: %s - %s", response.status_code, response.text)
             return False
 
         tokens = response.json()
@@ -133,51 +137,56 @@ class GoogleDriveService:
     ) -> Optional[dict]:
         creds = self._obtener_credenciales()
         if not creds:
+            logger.error("No hay credenciales de Google Drive configuradas")
             return None
 
-        service = build("drive", "v3", credentials=creds)
+        try:
+            service = build("drive", "v3", credentials=creds)
 
-        parent_id = self.FOLDER_ID
-        for parte in carpeta.split("/"):
-            if parte:
-                parent_id = self._asegurar_carpeta(service, parent_id, parte)
+            parent_id = self.FOLDER_ID
+            for parte in carpeta.split("/"):
+                if parte:
+                    parent_id = self._asegurar_carpeta(service, parent_id, parte)
 
-        media = MediaIoBaseUpload(
-            io.BytesIO(file_bytes),
-            filename=filename,
-            resumable=True,
-        )
+            ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+            mime_map = {
+                "pdf": "application/pdf",
+                "png": "image/png",
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+                "doc": "application/msword",
+                "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            }
+            mime_type = mime_map.get(ext, "application/octet-stream")
 
-        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-        mime_map = {
-            "pdf": "application/pdf",
-            "png": "image/png",
-            "jpg": "image/jpeg",
-            "jpeg": "image/jpeg",
-            "doc": "application/msword",
-            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        }
-        mime_type = mime_map.get(ext, "application/octet-stream")
+            media = MediaIoBaseUpload(
+                io.BytesIO(file_bytes),
+                mimetype=mime_type,
+                resumable=True,
+            )
 
-        file_metadata = {
-            "name": filename,
-            "parents": [parent_id],
-        }
+            file_metadata = {
+                "name": filename,
+                "parents": [parent_id],
+            }
 
-        file = service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields="id",
-        ).execute()
+            file = service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields="id",
+            ).execute()
 
-        file_id = file["id"]
-        url = f"https://drive.google.com/uc?id={file_id}"
+            file_id = file["id"]
+            url = f"https://drive.google.com/uc?id={file_id}"
 
-        return {
-            "file_id": file_id,
-            "url": url,
-            "filename": filename,
-        }
+            return {
+                "file_id": file_id,
+                "url": url,
+                "filename": filename,
+            }
+        except Exception as e:
+            logger.error("Error subiendo archivo a Google Drive: %s", str(e))
+            return None
 
     def obtener_url_archivo(self, file_id: str) -> str:
         return f"https://drive.google.com/uc?id={file_id}"
