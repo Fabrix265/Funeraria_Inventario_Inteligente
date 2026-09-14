@@ -39,6 +39,8 @@ def ejecutar_seeding(db: Session):
         {"nombre": "contratantes:crear",     "descripcion": "Crear registros de contratantes"},
         {"nombre": "contratantes:actualizar","descripcion": "Editar registros de contratantes"},
         {"nombre": "contratantes:eliminar",  "descripcion": "Eliminar registros de contratantes"},
+
+        {"nombre": "bitacora:listar", "descripcion": "Ver el historial de acciones del sistema"},
     ]
 
     permisos_db = []

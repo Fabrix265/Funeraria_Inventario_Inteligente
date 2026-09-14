@@ -6,3 +6,5 @@ from .fallecido import Fallecido
 from .contratante import Contratante
 from .servicio import Servicio
 from .servicio_vehiculo import ServicioVehiculo
+from .bitacora import Bitacora
+from .oauth_token import OAuthToken

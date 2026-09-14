@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from typing import List, Optional
 
 from src.deps.db_session import SessionDep
@@ -7,6 +7,7 @@ from src.services.capilla_service import CapillaService
 from src.schemas.capilla import CapillaLeer, CapillaCrear
 from src.schemas.stock import StockUpdate
 from src.schemas.estado import EstadoUpdate
+from src.services import bitacora_service
 
 capilla_router = APIRouter()
 
@@ -20,34 +21,98 @@ def listar_capillas(
 
 @capilla_router.post("/", response_model=CapillaLeer, status_code=status.HTTP_201_CREATED, dependencies=[Depends(CheckerPermisos("capillas:crear"))])
 def crear_capilla(
+    request: Request,
     capilla_in: CapillaCrear,
     db: SessionDep,
+    token: dict = Depends(CheckerPermisos("capillas:crear")),
 ):
-    return CapillaService.crear(db, capilla_in)
+    resultado = CapillaService.crear(db, capilla_in)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="crear",
+        modulo="capillas",
+        detalle=f"Capilla '{resultado.modelo}' creada",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
 
 @capilla_router.put("/{capilla_id}", response_model=CapillaLeer, dependencies=[Depends(CheckerPermisos("capillas:actualizar"))])
 def actualizar_capilla(
+    request: Request,
     capilla_id: int,
     capilla_in: CapillaCrear,
     db: SessionDep,
+    token: dict = Depends(CheckerPermisos("capillas:actualizar")),
 ):
-    return CapillaService.actualizar(db, capilla_id, capilla_in)
+    resultado = CapillaService.actualizar(db, capilla_id, capilla_in)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="actualizar",
+        modulo="capillas",
+        detalle=f"Capilla #{capilla_id} actualizada",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
 
 @capilla_router.delete("/{capilla_id}", dependencies=[Depends(CheckerPermisos("capillas:eliminar"))])
 def eliminar_capilla(
+    request: Request,
     capilla_id: int,
     db: SessionDep,
+    token: dict = Depends(CheckerPermisos("capillas:eliminar")),
 ):
-    return CapillaService.eliminar(db, capilla_id)
+    resultado = CapillaService.eliminar(db, capilla_id)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="eliminar",
+        modulo="capillas",
+        detalle=f"Capilla #{capilla_id} eliminada",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
 
 @capilla_router.patch("/{capilla_id}/stock", response_model=CapillaLeer, dependencies=[Depends(CheckerPermisos("capillas:actualizar"))])
 def actualizar_stock_capilla(
+    request: Request,
     capilla_id: int,
     stock_in: StockUpdate,
     db: SessionDep,
+    token: dict = Depends(CheckerPermisos("capillas:actualizar")),
 ):
-    return CapillaService.actualizar_stock(db, capilla_id, stock_in.cantidad)
+    resultado = CapillaService.actualizar_stock(db, capilla_id, stock_in.cantidad)
+    signo = "+" if stock_in.cantidad > 0 else ""
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="actualizar_stock",
+        modulo="capillas",
+        detalle=f"Stock de capilla #{capilla_id} cambiado en {signo}{stock_in.cantidad} (nuevo: {resultado.stock})",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
 
 @capilla_router.patch("/{capilla_id}/status", response_model=CapillaLeer, dependencies=[Depends(CheckerPermisos("capillas:actualizar"))])
-def cambiar_estado_capilla(capilla_id: int, datos: EstadoUpdate, db: SessionDep):
-    return CapillaService.cambiar_estado(db, capilla_id, datos.activo)
+def cambiar_estado_capilla(
+    request: Request,
+    capilla_id: int, datos: EstadoUpdate, db: SessionDep,
+    token: dict = Depends(CheckerPermisos("capillas:actualizar")),
+):
+    resultado = CapillaService.cambiar_estado(db, capilla_id, datos.activo)
+    estado = "activada" if datos.activo else "desactivada"
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="cambiar_estado",
+        modulo="capillas",
+        detalle=f"Capilla #{capilla_id} {estado}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
