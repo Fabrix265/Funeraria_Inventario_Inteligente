@@ -23,6 +23,7 @@ from src.routers.role_router import role_router
 from src.routers.reniec_router import reniec_router
 from src.routers.bitacora_router import bitacora_router
 from src.routers.drive_router import drive_router
+from src.core import cloudinary_config
 
 app = FastAPI(
     title="Inventario Funeraria Aranzabal API",
