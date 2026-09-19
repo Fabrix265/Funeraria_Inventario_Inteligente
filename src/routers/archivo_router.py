@@ -31,11 +31,11 @@ def listar_archivos(servicio_id: int, db: SessionDep):
     status_code=201,
 )
 def subir_archivo(
-    request: Request,
     servicio_id: int,
+    db: SessionDep,
+    request: Request,
     tipo: TipoArchivo = Form(...),
     file: UploadFile = File(...),
-    db: SessionDep,
     token: dict = Depends(CheckerPermisos("archivos:subir")),
 ):
     file_bytes = file.file.read()
@@ -74,10 +74,10 @@ def subir_archivo(
     dependencies=[Depends(CheckerPermisos("archivos:ver"))],
 )
 def descargar_archivo(
-    request: Request,
     servicio_id: int,
     archivo_id: int,
     db: SessionDep,
+    request: Request,
     token: dict = Depends(decode_token),
 ):
     file_bytes, mime_type, filename = archivo_service.descargar_archivo(db, archivo_id)
@@ -104,11 +104,11 @@ def descargar_archivo(
     response_model=ServicioArchivoRead,
 )
 def reemplazar_archivo(
-    request: Request,
     servicio_id: int,
     archivo_id: int,
-    file: UploadFile = File(...),
     db: SessionDep,
+    request: Request,
+    file: UploadFile = File(...),
     token: dict = Depends(CheckerPermisos("archivos:editar")),
 ):
     file_bytes = file.file.read()
@@ -145,10 +145,10 @@ def reemplazar_archivo(
     dependencies=[Depends(CheckerPermisos("archivos:eliminar"))],
 )
 def eliminar_archivo(
-    request: Request,
     servicio_id: int,
     archivo_id: int,
     db: SessionDep,
+    request: Request,
     token: dict = Depends(decode_token),
 ):
     archivo = db.get(ServicioArchivo, archivo_id)
