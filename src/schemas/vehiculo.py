@@ -7,6 +7,11 @@ class VehiculoBase(BaseModel):
 class VehiculoCrear(VehiculoBase):
     pass
 
+class VehiculoImagenLeer(BaseModel):
+    id: int
+    url: str
+    model_config = ConfigDict(from_attributes=True)
+
 class VehiculoLeer(VehiculoBase):
     id: int
     activo: bool
