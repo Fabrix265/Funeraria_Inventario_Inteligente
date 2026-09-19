@@ -16,6 +16,25 @@ from src.models.oauth_token import OAuthToken
 logger = logging.getLogger(__name__)
 
 
+class _BytesIODownloader:
+    """Helper to download Google Drive files into a BytesIO buffer."""
+
+    def __init__(self, request, buffer):
+        self._request = request
+        self._buffer = buffer
+        self._done = False
+
+    def next_chunk(self):
+        if self._done:
+            return
+        chunk, done = self._request.next_chunk()
+        if chunk:
+            self._buffer.write(chunk)
+        self._done = done
+        if not done:
+            self.next_chunk()
+
+
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
 
@@ -190,6 +209,75 @@ class GoogleDriveService:
 
     def obtener_url_archivo(self, file_id: str) -> str:
         return f"https://drive.google.com/uc?id={file_id}"
+
+    def descargar_archivo(self, file_id: str) -> Optional[bytes]:
+        creds = self._obtener_credenciales()
+        if not creds:
+            return None
+        try:
+            service = build("drive", "v3", credentials=creds)
+            request = service.files().get_media(fileId=file_id)
+            buffer = io.BytesIO()
+            downloader = _BytesIODownloader(request, buffer)
+            downloader.next_chunk()
+            return buffer.getvalue()
+        except Exception as e:
+            logger.error("Error descargando archivo de Drive: %s", str(e))
+            return None
+
+    def eliminar_archivo(self, file_id: str) -> bool:
+        creds = self._obtener_credenciales()
+        if not creds:
+            return False
+        try:
+            service = build("drive", "v3", credentials=creds)
+            service.files().delete(fileId=file_id).execute()
+            return True
+        except Exception as e:
+            logger.error("Error eliminando archivo de Drive: %s", str(e))
+            return False
+
+    def reemplazar_archivo(
+        self,
+        file_id: str,
+        file_bytes: bytes,
+        filename: str,
+    ) -> Optional[dict]:
+        creds = self._obtener_credenciales()
+        if not creds:
+            return None
+        try:
+            service = build("drive", "v3", credentials=creds)
+
+            ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+            mime_map = {
+                "pdf": "application/pdf",
+                "png": "image/png",
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+            }
+            mime_type = mime_map.get(ext, "application/octet-stream")
+
+            media = MediaIoBaseUpload(
+                io.BytesIO(file_bytes),
+                mimetype=mime_type,
+                resumable=True,
+            )
+
+            service.files().update(
+                fileId=file_id,
+                body={"name": filename},
+                media_body=media,
+            ).execute()
+
+            return {
+                "file_id": file_id,
+                "url": self.obtener_url_archivo(file_id),
+                "filename": filename,
+            }
+        except Exception as e:
+            logger.error("Error reemplazando archivo en Drive: %s", str(e))
+            return None
 
     def verificar_estado(self) -> dict:
         token = self.db.exec(

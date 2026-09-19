@@ -41,6 +41,11 @@ def ejecutar_seeding(db: Session):
         {"nombre": "contratantes:eliminar",  "descripcion": "Eliminar registros de contratantes"},
 
         {"nombre": "bitacora:listar", "descripcion": "Ver el historial de acciones del sistema"},
+
+        {"nombre": "archivos:ver",     "descripcion": "Ver y descargar archivos de servicios"},
+        {"nombre": "archivos:subir",    "descripcion": "Subir archivos a servicios"},
+        {"nombre": "archivos:editar",   "descripcion": "Reemplazar archivos de servicios"},
+        {"nombre": "archivos:eliminar", "descripcion": "Eliminar archivos de servicios"},
     ]
 
     permisos_db = []
@@ -78,6 +83,8 @@ def ejecutar_seeding(db: Session):
         "contratantes:leer",
         "contratantes:crear",
         "contratantes:actualizar",
+        "archivos:ver",
+        "archivos:subir",
     ]
     permisos_trabajador = [
         db.exec(select(Permission).where(Permission.nombre == n)).first()

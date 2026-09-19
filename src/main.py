@@ -23,6 +23,7 @@ from src.routers.role_router import role_router
 from src.routers.reniec_router import reniec_router
 from src.routers.bitacora_router import bitacora_router
 from src.routers.drive_router import drive_router
+from src.routers.archivo_router import archivo_router
 
 app = FastAPI(
     title="Inventario Funeraria Aranzabal API",
@@ -60,3 +61,4 @@ app.include_router(contratante_router, prefix="/contractors", tags=["Contratante
 app.include_router(reniec_router, prefix="/reniec", tags=["RENIEC"])
 app.include_router(bitacora_router, prefix="/bitacora", tags=["Bitácora"])
 app.include_router(drive_router, prefix="/drive", tags=["Google Drive"])
+app.include_router(archivo_router, prefix="/api", tags=["Archivos de Servicio"])
