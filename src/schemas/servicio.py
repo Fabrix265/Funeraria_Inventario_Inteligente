@@ -64,6 +64,7 @@ class ServicioLeerCompleto(BaseModel):
 
     # ✅ List[Any] — evita que Pydantic valide ServicioVehiculo como VehiculoLeer
     vehiculos_asignados: List[Any] = []
+    archivos: List[Any] = []
 
     @field_serializer('vehiculos_asignados')
     def serializar_vehiculos(self, v_list: List[Any]):

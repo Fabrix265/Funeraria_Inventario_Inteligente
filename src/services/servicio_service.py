@@ -1,15 +1,20 @@
+import logging
 from sqlmodel import Session, delete, select, or_, func
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException
 
 from src.models.servicio import Servicio
 from src.models.servicio_vehiculo import ServicioVehiculo
+from src.models.servicio_archivo import ServicioArchivo
 from src.models.fallecido import Fallecido
 from src.models.contratante import Contratante
 from src.models.ataud import Ataud
 from src.models.capilla import Capilla
 from src.models.vehiculo import Vehiculo
 from src.schemas.servicio import ServicioCrear
+from src.services.drive_service import GoogleDriveService
+
+logger = logging.getLogger(__name__)
 
 
 def _get_servicio_completo(session: Session, servicio_id: int) -> Servicio:
@@ -259,7 +264,18 @@ def modificar_servicio(session: Session, servicio_id: int, datos: dict):
 def eliminar_servicio(session: Session, servicio_id: int):
     servicio = session.get(Servicio, servicio_id)
     if not servicio: raise HTTPException(status_code=404, detail="No encontrado")
-    
+
+    archivos = session.exec(
+        select(ServicioArchivo).where(ServicioArchivo.id_servicio == servicio_id)
+    ).all()
+    drive = GoogleDriveService(session)
+    for archivo in archivos:
+        try:
+            drive.eliminar_archivo(archivo.drive_file_id)
+        except Exception as exc:
+            logger.warning("No se pudo eliminar de Drive el archivo %s: %s", archivo.drive_file_id, exc)
+        session.delete(archivo)
+
     capilla = session.get(Capilla, servicio.id_capilla)
     if capilla: capilla.stock += 1
     if servicio.id_ataud:

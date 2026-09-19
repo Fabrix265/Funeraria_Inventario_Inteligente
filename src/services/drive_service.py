@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 
 from src.models.oauth_token import OAuthToken
 
@@ -25,14 +25,11 @@ class _BytesIODownloader:
         self._done = False
 
     def next_chunk(self):
-        if self._done:
-            return
-        chunk, done = self._request.next_chunk()
-        if chunk:
-            self._buffer.write(chunk)
-        self._done = done
-        if not done:
-            self.next_chunk()
+        while not self._done:
+            status, done = self._request.next_chunk()
+            if status:
+                self._buffer.write(status)
+            self._done = done
 
 
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
@@ -218,8 +215,10 @@ class GoogleDriveService:
             service = build("drive", "v3", credentials=creds)
             request = service.files().get_media(fileId=file_id)
             buffer = io.BytesIO()
-            downloader = _BytesIODownloader(request, buffer)
-            downloader.next_chunk()
+            downloader = MediaIoBaseDownload(buffer, request)
+            done = False
+            while not done:
+                status, done = downloader.next_chunk()
             return buffer.getvalue()
         except Exception as e:
             logger.error("Error descargando archivo de Drive: %s", str(e))

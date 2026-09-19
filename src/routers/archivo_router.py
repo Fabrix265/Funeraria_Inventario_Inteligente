@@ -10,7 +10,7 @@ archivo_router = APIRouter()
 
 
 @archivo_router.get(
-    "/servicios/{servicio_id}/archivos",
+    "/{servicio_id}/archivos",
     response_model=ServicioArchivosResponse,
     dependencies=[Depends(CheckerPermisos("archivos:ver"))],
 )
@@ -26,7 +26,7 @@ def listar_archivos(servicio_id: int, db: SessionDep):
 
 
 @archivo_router.post(
-    "/servicios/{servicio_id}/archivos",
+    "/{servicio_id}/archivos",
     response_model=ServicioArchivoRead,
     status_code=201,
 )
@@ -70,7 +70,7 @@ def subir_archivo(
 
 
 @archivo_router.get(
-    "/servicios/{servicio_id}/archivos/{archivo_id}/descargar",
+    "/{servicio_id}/archivos/{archivo_id}/descargar",
     dependencies=[Depends(CheckerPermisos("archivos:ver"))],
 )
 def descargar_archivo(
@@ -100,7 +100,7 @@ def descargar_archivo(
 
 
 @archivo_router.put(
-    "/servicios/{servicio_id}/archivos/{archivo_id}",
+    "/{servicio_id}/archivos/{archivo_id}",
     response_model=ServicioArchivoRead,
 )
 def reemplazar_archivo(
@@ -141,7 +141,7 @@ def reemplazar_archivo(
 
 
 @archivo_router.delete(
-    "/servicios/{servicio_id}/archivos/{archivo_id}",
+    "/{servicio_id}/archivos/{archivo_id}",
     dependencies=[Depends(CheckerPermisos("archivos:eliminar"))],
 )
 def eliminar_archivo(

@@ -61,4 +61,4 @@ app.include_router(contratante_router, prefix="/contractors", tags=["Contratante
 app.include_router(reniec_router, prefix="/reniec", tags=["RENIEC"])
 app.include_router(bitacora_router, prefix="/bitacora", tags=["Bitácora"])
 app.include_router(drive_router, prefix="/drive", tags=["Google Drive"])
-app.include_router(archivo_router, prefix="/api", tags=["Archivos de Servicio"])
+app.include_router(archivo_router, prefix="/services", tags=["Archivos de Servicio"])

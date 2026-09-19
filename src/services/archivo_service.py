@@ -30,8 +30,16 @@ def _sanitizar_nombre(nombre: str) -> str:
 
 def _obtener_carpeta_fallecido(servicio: Servicio) -> str:
     nombre = _sanitizar_nombre(servicio.fallecido.nombre)
-    dni = servicio.fallecido.dni
+    dni = servicio.fallecido.dni_fallecido
     return f"{nombre}_{dni}"
+
+
+def _generar_nombre_archivo(tipo: TipoArchivo, servicio: Servicio, original: str) -> str:
+    base = _sanitizar_nombre(
+        f"{tipo.value}_{servicio.fallecido.nombre}_{servicio.fallecido.dni_fallecido}"
+    )
+    ext = original.rsplit(".", 1)[-1].lower() if "." in original else ""
+    return f"{base}.{ext}" if ext else base
 
 
 def listar_archivos(db: Session, servicio_id: int) -> List[ServicioArchivo]:
@@ -84,7 +92,8 @@ def subir_archivo(
 
     drive = GoogleDriveService(db)
     carpeta_nombre = _obtener_carpeta_fallecido(servicio)
-    resultado = drive.subir_archivo(file_bytes, filename, carpeta_nombre)
+    nombre_archivo = _generar_nombre_archivo(tipo, servicio, filename)
+    resultado = drive.subir_archivo(file_bytes, nombre_archivo, carpeta_nombre)
 
     if not resultado:
         raise HTTPException(
@@ -95,7 +104,7 @@ def subir_archivo(
     archivo = ServicioArchivo(
         id_servicio=servicio_id,
         tipo=tipo,
-        nombre_original=filename,
+        nombre_original=nombre_archivo,
         drive_file_id=resultado["file_id"],
         drive_file_url=resultado["url"],
         mime_type=mime_type,
@@ -153,8 +162,14 @@ def reemplazar_archivo(
             detail="El archivo excede el tamaño máximo de 10 MB.",
         )
 
+    servicio = db.get(Servicio, archivo.id_servicio)
+    if not servicio:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    nombre_archivo = _generar_nombre_archivo(archivo.tipo, servicio, filename)
+
     drive = GoogleDriveService(db)
-    resultado = drive.reemplazar_archivo(archivo.drive_file_id, file_bytes, filename)
+    resultado = drive.reemplazar_archivo(archivo.drive_file_id, file_bytes, nombre_archivo)
 
     if not resultado:
         raise HTTPException(
@@ -162,7 +177,7 @@ def reemplazar_archivo(
             detail="No se pudo reemplazar el archivo en Google Drive.",
         )
 
-    archivo.nombre_original = filename
+    archivo.nombre_original = nombre_archivo
     archivo.mime_type = mime_type
     archivo.drive_file_url = resultado["url"]
     archivo.updated_at = datetime.utcnow()
