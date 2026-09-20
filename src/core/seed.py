@@ -117,6 +117,17 @@ def ejecutar_seeding(db: Session):
     else:
         print(f" SEEDING: Usuario '{admin_username}' ya existe. Sin cambios.")
 
+    # Vehículos por defecto: se crean una única vez (la primera vez que se levanta el sistema).
+    from src.models.vehiculo import Vehiculo, TipoVehiculo
+
+    if not db.exec(select(Vehiculo).limit(1)).first():
+        for tipo in TipoVehiculo:
+            db.add(Vehiculo(tipo=tipo, activo=True))
+        db.commit()
+        print(f" SEEDING: Vehículos por defecto creados ({len(list(TipoVehiculo))} tipos).")
+    else:
+        print(" SEEDING: Ya existen vehículos en la BD. Sin cambios.")
+
 ###
 #Para push
 ###
