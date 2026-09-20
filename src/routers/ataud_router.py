@@ -8,6 +8,7 @@ from src.schemas.ataud import AtaudLeer, AtaudCrear, AtaudModificar
 from src.schemas.stock import StockUpdate
 from src.schemas.estado import EstadoUpdate
 from src.services import bitacora_service
+from fastapi import UploadFile, File
 
 ataud_router = APIRouter()
 
@@ -115,6 +116,47 @@ def cambiar_estado_ataud(
         accion="cambiar_estado",
         modulo="ataudes",
         detalle=f"Ataud #{ataud_id} {estado}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
+
+@ataud_router.post("/{ataud_id}/imagenes", response_model=AtaudLeer, dependencies=[Depends(CheckerPermisos("ataudes:actualizar"))])
+def agregar_imagen_ataud(
+    request: Request,
+    ataud_id: int,
+    imagen: UploadFile = File(...),
+    db: SessionDep = None,
+    token: dict = Depends(CheckerPermisos("ataudes:actualizar")),
+):
+    resultado = AtaudService.agregar_imagen(db, ataud_id, imagen)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="agregar_imagen",
+        modulo="ataudes",
+        detalle=f"Imagen agregada a ataúd #{ataud_id}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
+
+
+@ataud_router.delete("/{ataud_id}/imagenes/{imagen_id}", response_model=AtaudLeer, dependencies=[Depends(CheckerPermisos("ataudes:actualizar"))])
+def eliminar_imagen_ataud(
+    request: Request,
+    ataud_id: int,
+    imagen_id: int,
+    db: SessionDep,
+    token: dict = Depends(CheckerPermisos("ataudes:actualizar")),
+):
+    resultado = AtaudService.eliminar_imagen(db, ataud_id, imagen_id)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="eliminar_imagen",
+        modulo="ataudes",
+        detalle=f"Imagen #{imagen_id} eliminada de ataúd #{ataud_id}",
         ip_address=request.client.host if request.client else None,
     )
     return resultado

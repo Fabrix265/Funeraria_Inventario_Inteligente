@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional
+from typing import List, Optional
 
 class AtaudBase(BaseModel):
     modelo: str = Field(min_length=1, max_length=100)
@@ -15,7 +15,13 @@ class AtaudModificar(BaseModel):
     stock: Optional[int] = Field(None, ge=0)
     activo: Optional[bool] = None
 
+class AtaudImagenLeer(BaseModel):
+    id: int
+    url: str
+    model_config = ConfigDict(from_attributes=True)
+
 class AtaudLeer(AtaudBase):
     id: int
     activo: bool
+    imagenes: List[AtaudImagenLeer] = []
     model_config = ConfigDict(from_attributes=True)
