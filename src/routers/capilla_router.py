@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status, UploadFile, File
 from typing import List, Optional
 
 from src.deps.db_session import SessionDep
@@ -113,6 +113,47 @@ def cambiar_estado_capilla(
         accion="cambiar_estado",
         modulo="capillas",
         detalle=f"Capilla #{capilla_id} {estado}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
+
+@capilla_router.post("/{capilla_id}/imagenes", response_model=CapillaLeer, dependencies=[Depends(CheckerPermisos("capillas:actualizar"))])
+def agregar_imagen_capilla(
+    request: Request,
+    capilla_id: int,
+    imagen: UploadFile = File(...),
+    db: SessionDep = None,
+    token: dict = Depends(CheckerPermisos("capillas:actualizar")),
+):
+    resultado = CapillaService.agregar_imagen(db, capilla_id, imagen)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="agregar_imagen",
+        modulo="capillas",
+        detalle=f"Imagen agregada a capilla #{capilla_id}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
+
+
+@capilla_router.delete("/{capilla_id}/imagenes/{imagen_id}", response_model=CapillaLeer, dependencies=[Depends(CheckerPermisos("capillas:actualizar"))])
+def eliminar_imagen_capilla(
+    request: Request,
+    capilla_id: int,
+    imagen_id: int,
+    db: SessionDep,
+    token: dict = Depends(CheckerPermisos("capillas:actualizar")),
+):
+    resultado = CapillaService.eliminar_imagen(db, capilla_id, imagen_id)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="eliminar_imagen",
+        modulo="capillas",
+        detalle=f"Imagen #{imagen_id} eliminada de capilla #{capilla_id}",
         ip_address=request.client.host if request.client else None,
     )
     return resultado

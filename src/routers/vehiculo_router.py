@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status, UploadFile, File
 from typing import List, Optional
 
 from src.deps.db_session import SessionDep
@@ -92,6 +92,47 @@ def cambiar_estado_vehiculo(
         accion="cambiar_estado",
         modulo="vehiculos",
         detalle=f"Vehiculo #{vehiculo_id} {estado}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
+
+@vehiculo_router.post("/{vehiculo_id}/imagenes", response_model=VehiculoLeer, dependencies=[Depends(CheckerPermisos("vehiculos:actualizar"))])
+def agregar_imagen_vehiculo(
+    request: Request,
+    vehiculo_id: int,
+    imagen: UploadFile = File(...),
+    db: SessionDep = None,
+    token: dict = Depends(CheckerPermisos("vehiculos:actualizar")),
+):
+    resultado = VehiculoService.agregar_imagen(db, vehiculo_id, imagen)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="agregar_imagen",
+        modulo="vehiculos",
+        detalle=f"Imagen agregada a vehículo #{vehiculo_id}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
+
+
+@vehiculo_router.delete("/{vehiculo_id}/imagenes/{imagen_id}", response_model=VehiculoLeer, dependencies=[Depends(CheckerPermisos("vehiculos:actualizar"))])
+def eliminar_imagen_vehiculo(
+    request: Request,
+    vehiculo_id: int,
+    imagen_id: int,
+    db: SessionDep,
+    token: dict = Depends(CheckerPermisos("vehiculos:actualizar")),
+):
+    resultado = VehiculoService.eliminar_imagen(db, vehiculo_id, imagen_id)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="eliminar_imagen",
+        modulo="vehiculos",
+        detalle=f"Imagen #{imagen_id} eliminada de vehículo #{vehiculo_id}",
         ip_address=request.client.host if request.client else None,
     )
     return resultado
