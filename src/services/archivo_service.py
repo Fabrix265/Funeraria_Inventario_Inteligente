@@ -31,7 +31,7 @@ def _sanitizar_nombre(nombre: str) -> str:
 def _obtener_carpeta_servicio(servicio: Servicio) -> str:
     nombre = _sanitizar_nombre(servicio.fallecido.nombre)
     dni = servicio.fallecido.dni_fallecido
-    return f"Servicio_{servicio.id}_{nombre}_{dni}"
+    return f"{nombre}_{dni}"
 
 
 def _generar_nombre_archivo(tipo: TipoArchivo, servicio: Servicio, original: str) -> str:

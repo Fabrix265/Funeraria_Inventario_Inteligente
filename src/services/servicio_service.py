@@ -13,6 +13,7 @@ from src.models.capilla import Capilla
 from src.models.vehiculo import Vehiculo
 from src.schemas.servicio import ServicioCrear
 from src.services.drive_service import GoogleDriveService
+from src.services.archivo_service import _obtener_carpeta_servicio
 
 logger = logging.getLogger(__name__)
 
@@ -275,6 +276,11 @@ def eliminar_servicio(session: Session, servicio_id: int):
         except Exception as exc:
             logger.warning("No se pudo eliminar de Drive el archivo %s: %s", archivo.drive_file_id, exc)
         session.delete(archivo)
+
+    try:
+        drive.eliminar_carpeta(drive.FOLDER_ID, _obtener_carpeta_servicio(servicio))
+    except Exception as exc:
+        logger.warning("No se pudo eliminar la carpeta de Drive del servicio %s: %s", servicio_id, exc)
 
     capilla = session.get(Capilla, servicio.id_capilla)
     if capilla: capilla.stock += 1

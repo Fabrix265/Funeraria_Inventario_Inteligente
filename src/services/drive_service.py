@@ -236,6 +236,37 @@ class GoogleDriveService:
             logger.error("Error eliminando archivo de Drive: %s", str(e))
             return False
 
+    def eliminar_carpeta(self, parent_id: str, nombre_carpeta: str) -> bool:
+        creds = self._obtener_credenciales()
+        if not creds:
+            return False
+        try:
+            service = build("drive", "v3", credentials=creds)
+            query = (
+                f"name='{nombre_carpeta}' and "
+                f"'{parent_id}' in parents and "
+                f"mimeType='application/vnd.google-apps.folder' and "
+                f"trashed=false"
+            )
+            results = service.files().list(q=query, fields="files(id)").execute()
+            items = results.get("files", [])
+            if not items:
+                return False
+
+            carpeta_id = items[0]["id"]
+            children = service.files().list(
+                q=f"'{carpeta_id}' in parents and trashed=false",
+                fields="files(id)",
+            ).execute()
+            if children.get("files"):
+                return False
+
+            service.files().delete(fileId=carpeta_id).execute()
+            return True
+        except Exception as e:
+            logger.error("Error eliminando carpeta de Drive '%s': %s", nombre_carpeta, str(e))
+            return False
+
     def reemplazar_archivo(
         self,
         file_id: str,
