@@ -1,5 +1,9 @@
 from sqlmodel import SQLModel, Field, Relationship
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.models.servicio import Servicio
+    from src.models.vehiculo import Vehiculo
 
 class ServicioVehiculo(SQLModel, table=True):
     __tablename__ = "servicio_vehiculo"

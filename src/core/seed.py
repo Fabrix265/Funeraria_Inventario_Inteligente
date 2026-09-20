@@ -41,6 +41,11 @@ def ejecutar_seeding(db: Session):
         {"nombre": "contratantes:eliminar",  "descripcion": "Eliminar registros de contratantes"},
 
         {"nombre": "bitacora:listar", "descripcion": "Ver el historial de acciones del sistema"},
+
+        {"nombre": "archivos:ver",     "descripcion": "Ver y descargar archivos de servicios"},
+        {"nombre": "archivos:subir",    "descripcion": "Subir archivos a servicios"},
+        {"nombre": "archivos:editar",   "descripcion": "Reemplazar archivos de servicios"},
+        {"nombre": "archivos:eliminar", "descripcion": "Eliminar archivos de servicios"},
     ]
 
     permisos_db = []
@@ -78,6 +83,8 @@ def ejecutar_seeding(db: Session):
         "contratantes:leer",
         "contratantes:crear",
         "contratantes:actualizar",
+        "archivos:ver",
+        "archivos:subir",
     ]
     permisos_trabajador = [
         db.exec(select(Permission).where(Permission.nombre == n)).first()
@@ -109,6 +116,23 @@ def ejecutar_seeding(db: Session):
         print(f" SEEDING: Usuario '{admin_username}' creado con rol Administrador.")
     else:
         print(f" SEEDING: Usuario '{admin_username}' ya existe. Sin cambios.")
+
+    # Vehículos por defecto: idempotente POR TIPO. En CADA arranque se garantiza que
+    # exista un vehículo de cada TipoVehiculo, creando únicamente los que falten.
+    # No borra ni duplica los vehículos personalizados que ya hayas creado. Si mañana
+    # agregas un tipo nuevo al enum, se crea solo al levantar el sistema.
+    from src.models.vehiculo import Vehiculo, TipoVehiculo
+
+    creados = 0
+    for tipo in TipoVehiculo:
+        if not db.exec(select(Vehiculo).where(Vehiculo.tipo == tipo).limit(1)).first():
+            db.add(Vehiculo(tipo=tipo, activo=True))
+            creados += 1
+    if creados:
+        db.commit()
+        print(f" SEEDING: Vehículos por defecto completados ({creados} tipo(s) que faltaban).")
+    else:
+        print(" SEEDING: Ya existe un vehículo de cada TipoVehiculo. Sin cambios.")
 
 ###
 #Para push
