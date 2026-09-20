@@ -1,6 +1,9 @@
 from sqlmodel import SQLModel, Field, Relationship
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from enum import Enum
+
+if TYPE_CHECKING:
+    from src.models.servicio_vehiculo import ServicioVehiculo
 
 class TipoVehiculo(str, Enum):
     porta_ataud = "porta_ataud"
