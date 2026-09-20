@@ -28,10 +28,10 @@ def _sanitizar_nombre(nombre: str) -> str:
     return nombre[:80] if nombre else "sin_nombre"
 
 
-def _obtener_carpeta_fallecido(servicio: Servicio) -> str:
+def _obtener_carpeta_servicio(servicio: Servicio) -> str:
     nombre = _sanitizar_nombre(servicio.fallecido.nombre)
     dni = servicio.fallecido.dni_fallecido
-    return f"{nombre}_{dni}"
+    return f"Servicio_{servicio.id}_{nombre}_{dni}"
 
 
 def _generar_nombre_archivo(tipo: TipoArchivo, servicio: Servicio, original: str) -> str:
@@ -91,7 +91,7 @@ def subir_archivo(
         )
 
     drive = GoogleDriveService(db)
-    carpeta_nombre = _obtener_carpeta_fallecido(servicio)
+    carpeta_nombre = _obtener_carpeta_servicio(servicio)
     nombre_archivo = _generar_nombre_archivo(tipo, servicio, filename)
     resultado = drive.subir_archivo(file_bytes, nombre_archivo, carpeta_nombre)
 
