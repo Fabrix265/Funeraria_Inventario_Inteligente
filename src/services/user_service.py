@@ -73,12 +73,20 @@ class UserService:
         if not db_user:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         
-        statement = select(User).where(User.username == user_data.username).where(User.id != user_id)
-        if db.exec(statement).first():
-            raise HTTPException(status_code=400, detail="El nombre de usuario ya está en uso")
+        if user_data.username is not None:
+            statement = select(User).where(User.username == user_data.username).where(User.id != user_id)
+            if db.exec(statement).first():
+                raise HTTPException(status_code=400, detail="El nombre de usuario ya está en uso")
+            db_user.username = user_data.username
 
-        db_user.username = user_data.username
-        db_user.password = cls.hash_password(user_data.password)
+        if user_data.email is not None:
+            statement = select(User).where(User.email == user_data.email).where(User.id != user_id)
+            if db.exec(statement).first():
+                raise HTTPException(status_code=400, detail="El correo ya está en uso")
+            db_user.email = user_data.email
+
+        if user_data.password is not None:
+            db_user.password = cls.hash_password(user_data.password)
         
         db.add(db_user)
         db.commit()

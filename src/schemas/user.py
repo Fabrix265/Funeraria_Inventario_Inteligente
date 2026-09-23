@@ -27,8 +27,9 @@ class UserLeer(BaseModel):
         from_attributes = True
 
 class UserActualizarSe(BaseModel):
-    username: str = Field(min_length=3, max_length=30)
-    password: str = Field(min_length=6)
+    username: Optional[str] = Field(default=None, min_length=3, max_length=30)
+    email: Optional[EmailStr] = None
+    password: Optional[str] = Field(default=None, min_length=6)
 
 class RoleCrear(BaseModel):
     nombre: str = Field(min_length=3, max_length=50)
