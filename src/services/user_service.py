@@ -18,13 +18,17 @@ class UserService:
             statement = select(User).where(User.username == user_data.username)
             if db.exec(statement).first():
                 raise HTTPException(status_code=400, detail="El nombre de usuario ya existe")
-            
+
+            if db.exec(select(User).where(User.email == user_data.email)).first():
+                raise HTTPException(status_code=400, detail="El correo ya está registrado")
+
             rol = db.get(Role, user_data.role_id)
             if not rol:
                 raise HTTPException(status_code=404, detail="El Rol especificado no existe")
 
             nuevo_usuario = User(
                 username=user_data.username,
+                email=user_data.email,
                 password=cls.hash_password(user_data.password)
             )
             
@@ -119,11 +123,16 @@ class UserService:
         if db.exec(statement).first():
             raise HTTPException(status_code=400, detail="El nombre de usuario ya está en uso")
 
+        statement = select(User).where(User.email == user_data.email).where(User.id != user_id)
+        if db.exec(statement).first():
+            raise HTTPException(status_code=400, detail="El correo ya está en uso")
+
         nuevo_rol = db.get(Role, user_data.role_id)
         if not nuevo_rol:
             raise HTTPException(status_code=404, detail="El Rol especificado no existe")
 
         db_user.username = user_data.username
+        db_user.email = user_data.email
         if user_data.password:
             db_user.password = cls.hash_password(user_data.password)
 
