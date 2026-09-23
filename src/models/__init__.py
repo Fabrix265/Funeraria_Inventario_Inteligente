@@ -9,3 +9,4 @@ from .servicio_vehiculo import ServicioVehiculo
 from .servicio_archivo import ServicioArchivo
 from .bitacora import Bitacora
 from .oauth_token import OAuthToken
+from .password_reset_token import PasswordResetToken
