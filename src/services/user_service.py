@@ -57,6 +57,13 @@ class UserService:
         return db.exec(select(Role)).all()
 
     @staticmethod
+    def obtener_usuario(db: Session, user_id: int) -> User:
+        db_user = db.get(User, user_id)
+        if not db_user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        return db_user
+
+    @staticmethod
     def eliminar_usuario(db: Session, user_id: int, current_user_id: int):
         if user_id == current_user_id:
             raise HTTPException(status_code=400, detail="No puedes eliminar tu propia cuenta")

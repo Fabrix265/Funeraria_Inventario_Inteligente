@@ -40,6 +40,7 @@ class AuthService:
         token_data = {
             "sub": str(user.id),
             "username": user.username,
+            "email": user.email,
             "roles": roles_usuario,
             "permisos": permisos_usuario
         }
@@ -50,7 +51,9 @@ class AuthService:
             "access_token": token,
             "token_type": "bearer",
             "user": {
+                "id": user.id,
                 "username": user.username,
+                "email": user.email,
                 "roles": roles_usuario,
                 "permisos": permisos_usuario
             }
