@@ -9,6 +9,7 @@ class DriveAuthUrlResponse(BaseModel):
 class DriveStatusResponse(BaseModel):
     autorizado: bool
     expira_en: Optional[str] = None
+    motivo: Optional[str] = None
 
 
 class DriveUploadResponse(BaseModel):

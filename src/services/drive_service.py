@@ -320,13 +320,18 @@ class GoogleDriveService:
         ).first()
 
         if not token:
-            return {"autorizado": False, "expira_en": None}
+            return {"autorizado": False, "expira_en": None, "motivo": "no_autorizado"}
+
+        if token.refresh_token:
+            creds = self._obtener_credenciales()
+            if creds is None:
+                return {"autorizado": False, "expira_en": None, "motivo": "refresh_invalido"}
+            token = self.db.exec(
+                select(OAuthToken).where(OAuthToken.proveedor == "google_drive")
+            ).first()
 
         expira_str = None
-        if token.token_expiry:
+        if token and token.token_expiry:
             expira_str = token.token_expiry.isoformat()
 
-        return {
-            "autorizado": True,
-            "expira_en": expira_str,
-        }
+        return {"autorizado": True, "expira_en": expira_str, "motivo": None}
