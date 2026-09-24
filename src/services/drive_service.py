@@ -113,10 +113,15 @@ class GoogleDriveService:
             client_id=self.CLIENT_ID,
             client_secret=self.CLIENT_SECRET,
             scopes=SCOPES,
+            expiry=token.token_expiry,
         )
 
         if creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+            try:
+                creds.refresh(Request())
+            except Exception as e:
+                logger.warning("No se pudo renovar el token de Google Drive: %s", str(e))
+                return None
             token.access_token = creds.token
             if creds.expiry:
                 token.token_expiry = creds.expiry
