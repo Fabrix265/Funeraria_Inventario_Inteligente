@@ -56,6 +56,10 @@ def eliminar_usuario(
     )
     return resultado
 
+@user_router.get("/me", response_model=UserLeer, dependencies=[Depends(decode_token)])
+def obtener_mi_perfil(db: SessionDep, token: dict = Depends(decode_token)):
+    return UserService.obtener_usuario(db, int(token.get("sub")))
+
 @user_router.put("/me", response_model=UserLeer)
 def editar_mi_perfil(
     request: Request,

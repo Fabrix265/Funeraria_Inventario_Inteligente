@@ -104,10 +104,13 @@ def ejecutar_seeding(db: Session):
     import os
     admin_username = os.getenv("ADMIN_USER", "fabAdmin")
     admin_password = os.getenv("ADMIN_PASSWORD", "admin123456")
+    admin_email = os.getenv("ADMIN_EMAIL", "")
 
-    if not db.exec(select(User).where(User.username == admin_username)).first():
+    admin_existente = db.exec(select(User).where(User.username == admin_username)).first()
+    if not admin_existente:
         nuevo_admin = User(
             username=admin_username,
+            email=admin_email,
             password=pwd_context.hash(admin_password)
         )
         nuevo_admin.roles.append(rol_admin)
@@ -115,6 +118,11 @@ def ejecutar_seeding(db: Session):
         db.commit()
         print(f" SEEDING: Usuario '{admin_username}' creado con rol Administrador.")
     else:
+        if admin_email and not admin_existente.email:
+            admin_existente.email = admin_email
+            db.add(admin_existente)
+            db.commit()
+            print(f" SEEDING: Email asignado al usuario '{admin_username}'.")
         print(f" SEEDING: Usuario '{admin_username}' ya existe. Sin cambios.")
 
     # Vehículos por defecto: idempotente POR TIPO. En CADA arranque se garantiza que

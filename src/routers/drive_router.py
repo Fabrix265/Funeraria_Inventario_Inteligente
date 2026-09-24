@@ -1,4 +1,7 @@
+import os
+
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from src.deps.db_session import SessionDep
 from src.core.security import decode_token
 from src.schemas.drive import DriveAuthUrlResponse, DriveStatusResponse, DriveUploadResponse
@@ -22,9 +25,10 @@ def obtener_url_auth(
 def drive_callback(code: str, db: SessionDep):
     service = GoogleDriveService(db)
     exito = service.intercambiar_codigo(code)
+    app_url = os.getenv("APP_URL", "http://localhost:4200")
     if not exito:
-        raise HTTPException(status_code=400, detail="No se pudieron intercambiar los tokens de Google. Verifica que el codigo no haya expirado o sido usado ya.")
-    return {"message": "Conexion con Google Drive exitosa"}
+        return RedirectResponse(url=f"{app_url}/dashboard?drive=error")
+    return RedirectResponse(url=f"{app_url}/dashboard?drive=ok")
 
 
 @drive_router.get("/status", response_model=DriveStatusResponse)
