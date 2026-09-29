@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Optional
+from io import BytesIO
 from sqlmodel import Session, select, func
+from openpyxl import Workbook
 from src.models.bitacora import Bitacora
 
 
@@ -28,6 +30,28 @@ def registrar(
     return entrada
 
 
+def _aplicar_filtros(
+    query,
+    *,
+    fecha_inicio: Optional[str] = None,
+    fecha_fin: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    accion: Optional[str] = None,
+    modulo: Optional[str] = None,
+):
+    if fecha_inicio:
+        query = query.where(Bitacora.created_at >= datetime.fromisoformat(fecha_inicio))
+    if fecha_fin:
+        query = query.where(Bitacora.created_at <= datetime.fromisoformat(fecha_fin))
+    if usuario_id is not None:
+        query = query.where(Bitacora.usuario_id == usuario_id)
+    if accion:
+        query = query.where(Bitacora.accion == accion)
+    if modulo:
+        query = query.where(Bitacora.modulo == modulo)
+    return query
+
+
 def listar(
     db: Session,
     *,
@@ -39,26 +63,10 @@ def listar(
     offset: int = 0,
     limit: int = 20,
 ):
-    query = select(Bitacora)
-    count_query = select(func.count(Bitacora.id))
+    filtros = dict(fecha_inicio=fecha_inicio, fecha_fin=fecha_fin, usuario_id=usuario_id, accion=accion, modulo=modulo)
 
-    if fecha_inicio:
-        fecha_dt = datetime.fromisoformat(fecha_inicio)
-        query = query.where(Bitacora.created_at >= fecha_dt)
-        count_query = count_query.where(Bitacora.created_at >= fecha_dt)
-    if fecha_fin:
-        fecha_dt = datetime.fromisoformat(fecha_fin)
-        query = query.where(Bitacora.created_at <= fecha_dt)
-        count_query = count_query.where(Bitacora.created_at <= fecha_dt)
-    if usuario_id is not None:
-        query = query.where(Bitacora.usuario_id == usuario_id)
-        count_query = count_query.where(Bitacora.usuario_id == usuario_id)
-    if accion:
-        query = query.where(Bitacora.accion == accion)
-        count_query = count_query.where(Bitacora.accion == accion)
-    if modulo:
-        query = query.where(Bitacora.modulo == modulo)
-        count_query = count_query.where(Bitacora.modulo == modulo)
+    query = _aplicar_filtros(select(Bitacora), **filtros)
+    count_query = _aplicar_filtros(select(func.count(Bitacora.id)), **filtros)
 
     total = db.exec(count_query).one()
     total_paginas = (total + limit - 1) // limit if limit > 0 else 1
@@ -77,3 +85,45 @@ def listar(
 
 def obtener_por_id(db: Session, bitacora_id: int) -> Optional[Bitacora]:
     return db.get(Bitacora, bitacora_id)
+
+
+def exportar_excel(
+    db: Session,
+    *,
+    fecha_inicio: Optional[str] = None,
+    fecha_fin: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    accion: Optional[str] = None,
+    modulo: Optional[str] = None,
+) -> bytes:
+    query = _aplicar_filtros(
+        select(Bitacora),
+        fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+        usuario_id=usuario_id, accion=accion, modulo=modulo,
+    )
+    registros = db.exec(query.order_by(Bitacora.created_at.desc())).all()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Bitacora"
+    ws.append(["ID", "Fecha", "Usuario", "Acción", "Módulo", "Detalle", "IP"])
+
+    for r in registros:
+        ws.append([
+            r.id,
+            r.created_at.strftime("%d/%m/%Y %H:%M") if r.created_at else "",
+            r.usuario_nombre,
+            r.accion,
+            r.modulo,
+            r.detalle or "",
+            r.ip_address or "",
+        ])
+
+    for columna in ws.columns:
+        largo = max((len(str(c.value)) for c in columna if c.value is not None), default=10)
+        ws.column_dimensions[columna[0].column_letter].width = min(largo + 2, 50)
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
