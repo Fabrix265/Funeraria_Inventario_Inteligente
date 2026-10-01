@@ -4,7 +4,7 @@ from sqlmodel import select
 from src.deps.db_session import SessionDep
 from src.core.security import CheckerPermisos
 from src.services.role_service import RoleService
-from src.schemas.user import RoleCrear, RoleDetalleLeer, PermissionLeer
+from src.schemas.user import RoleCrear, RoleModificar, RoleDetalleLeer, PermissionLeer
 from src.models.user import Permission 
 from src.services import bitacora_service
 
@@ -56,3 +56,23 @@ def eliminar_rol(
 @role_router.get("/", response_model=List[RoleDetalleLeer], dependencies=[Depends(CheckerPermisos("usuarios:listar"))])
 def listar_roles(db: SessionDep):
     return RoleService.listar_roles(db)
+
+@role_router.put("/{role_id}", response_model=RoleDetalleLeer, dependencies=[Depends(CheckerPermisos("usuarios:actualizar"))])
+def actualizar_rol(
+    request: Request,
+    role_id: int,
+    rol_in: RoleModificar,
+    db: SessionDep,
+    token: dict = Depends(CheckerPermisos("usuarios:actualizar")),
+):
+    resultado = RoleService.actualizar_rol(db, role_id, rol_in)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="actualizar",
+        modulo="roles",
+        detalle=f"Rol #{role_id} actualizado",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
