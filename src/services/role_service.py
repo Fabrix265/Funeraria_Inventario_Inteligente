@@ -1,7 +1,7 @@
 from sqlmodel import Session, select
 from fastapi import HTTPException, status
 from src.models.user import Role, Permission
-from src.schemas.user import RoleCrear
+from src.schemas.user import RoleCrear, RoleModificar
 
 class RoleService:
     @staticmethod
@@ -47,3 +47,31 @@ class RoleService:
         db.delete(rol)
         db.commit()
         return {"message": f"Rol '{rol.nombre}' eliminado correctamente"}
+
+    @staticmethod
+    def actualizar_rol(db: Session, role_id: int, rol_data: RoleModificar):
+        rol = db.get(Role, role_id)
+        if not rol:
+            raise HTTPException(status_code=404, detail="El rol especificado no existe")
+
+        if rol.nombre.lower() in ["administrador", "superadmin"]:
+            raise HTTPException(status_code=400, detail="No puedes modificar los roles base del sistema")
+
+        statement = select(Role).where(Role.nombre == rol_data.nombre, Role.id != role_id)
+        if db.exec(statement).first():
+            raise HTTPException(status_code=400, detail="El nombre de este rol ya existe")
+
+        rol.nombre = rol_data.nombre
+        rol.permisos.clear()
+
+        for perm_id in rol_data.permisos_ids:
+            permiso = db.get(Permission, perm_id)
+            if permiso:
+                rol.permisos.append(permiso)
+            else:
+                raise HTTPException(status_code=404, detail=f"El permiso con ID {perm_id} no existe")
+
+        db.add(rol)
+        db.commit()
+        db.refresh(rol)
+        return rol

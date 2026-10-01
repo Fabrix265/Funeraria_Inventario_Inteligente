@@ -8,6 +8,7 @@ def ejecutar_seeding(db: Session):
     permisos_sistema = [
         {"nombre": "usuarios:crear",   "descripcion": "Crear y editar usuarios y roles"},
         {"nombre": "usuarios:listar",  "descripcion": "Ver la lista de usuarios y roles"},
+        {"nombre": "usuarios:actualizar", "descripcion": "Editar roles y sus permisos"},
         {"nombre": "usuarios:eliminar","descripcion": "Eliminar usuarios del sistema"},
 
         {"nombre": "ataudes:leer",           "descripcion": "Ver el inventario de ataúdes"},

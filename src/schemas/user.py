@@ -56,3 +56,7 @@ class UserActualizarAdmin(BaseModel):
     email: EmailStr
     role_id: int
     password: Optional[str] = Field(default=None, min_length=6)
+
+class RoleModificar(BaseModel):
+    nombre: str = Field(min_length=3, max_length=50)
+    permisos_ids: List[int] = []
