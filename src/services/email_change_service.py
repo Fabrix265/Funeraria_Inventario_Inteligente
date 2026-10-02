@@ -126,7 +126,7 @@ class EmailChangeService:
 
         if not AuthService.verify_password(password_actual, user.password):
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="La contraseña actual es incorrecta",
             )
 
