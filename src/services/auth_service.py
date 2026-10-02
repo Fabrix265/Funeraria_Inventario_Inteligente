@@ -23,7 +23,7 @@ class AuthService:
     @classmethod
     def solicitar_recuperacion(cls, db: Session, email: str, app_url: str):
         user = db.exec(select(User).where(func.lower(User.email) == email.lower())).first()
-        if not user:
+        if not user or not user.activo:
             return False
 
         ahora = datetime.utcnow()
@@ -83,10 +83,18 @@ class AuthService:
                 detail="El enlace no es válido o ha expirado",
             )
 
+        otros_pendientes = db.exec(
+            select(PasswordResetToken).where(
+                PasswordResetToken.user_id == registro.user_id,
+                PasswordResetToken.usado_en.is_(None),
+            )
+        ).all()
+        for pendiente in otros_pendientes:
+            db.delete(pendiente)
+
         user.password = pwd_context.hash(nueva_password)
-        registro.usado_en = ahora
+        user.token_version += 1
         db.add(user)
-        db.add(registro)
         db.commit()
         return {
             "message": "Contraseña actualizada correctamente",
@@ -124,6 +132,7 @@ class AuthService:
             "sub": str(user.id),
             "username": user.username,
             "email": user.email,
+            "ver": user.token_version,
             "roles": roles_usuario,
             "permisos": permisos_usuario
         }

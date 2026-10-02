@@ -158,7 +158,9 @@ class EmailChangeService:
             logger.error("No se pudo enviar el codigo de cambio de correo a %s", email_nuevo)
 
     @classmethod
-    def confirmar(cls, db: Session, user_id: int, email_nuevo: str, codigo: str) -> User:
+    def confirmar(
+        cls, db: Session, user_id: int, email_nuevo: str, codigo: str
+    ) -> tuple[User, str]:
         email_nuevo = email_nuevo.strip().lower()
         ahora = datetime.utcnow()
 
@@ -214,7 +216,7 @@ class EmailChangeService:
         ):
             logger.error("No se pudo notificar el cambio de correo a %s", email_anterior)
 
-        return user
+        return user, email_anterior
 
     @classmethod
     def cancelar(cls, db: Session, user_id: int) -> None:

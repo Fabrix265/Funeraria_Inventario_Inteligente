@@ -3,6 +3,9 @@ from typing import Optional
 from fastapi import HTTPException, status
 from passlib.context import CryptContext
 from src.models.user import User, Role, UserRoleLink
+from src.models.bitacora import Bitacora
+from src.models.email_change_request import EmailChangeRequest
+from src.models.password_reset_token import PasswordResetToken
 from src.schemas.user import UserActualizarSe, UserCrear, UserActualizarAdmin
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -19,7 +22,8 @@ class UserService:
             if db.exec(statement).first():
                 raise HTTPException(status_code=400, detail="El nombre de usuario ya existe")
 
-            if db.exec(select(User).where(User.email == user_data.email)).first():
+            email = user_data.email.lower()
+            if db.exec(select(User).where(func.lower(User.email) == email)).first():
                 raise HTTPException(status_code=400, detail="El correo ya está registrado")
 
             rol = db.get(Role, user_data.role_id)
@@ -28,7 +32,7 @@ class UserService:
 
             nuevo_usuario = User(
                 username=user_data.username,
-                email=user_data.email,
+                email=email,
                 password=cls.hash_password(user_data.password)
             )
             
@@ -70,6 +74,13 @@ class UserService:
         db_user = db.get(User, user_id)
         if not db_user:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+        for registro in db.exec(select(Bitacora).where(Bitacora.usuario_id == user_id)).all():
+            registro.usuario_id = None
+        for modelo in (EmailChangeRequest, PasswordResetToken):
+            for pendiente in db.exec(select(modelo).where(modelo.user_id == user_id)).all():
+                db.delete(pendiente)
+
         db.delete(db_user)
         db.commit()
         return {"message": "Usuario eliminado"}
@@ -86,14 +97,9 @@ class UserService:
                 raise HTTPException(status_code=400, detail="El nombre de usuario ya está en uso")
             db_user.username = user_data.username
 
-        if user_data.email is not None:
-            statement = select(User).where(User.email == user_data.email).where(User.id != user_id)
-            if db.exec(statement).first():
-                raise HTTPException(status_code=400, detail="El correo ya está en uso")
-            db_user.email = user_data.email
-
         if user_data.password is not None:
             db_user.password = cls.hash_password(user_data.password)
+            db_user.token_version += 1
         
         db.add(db_user)
         db.commit()
@@ -123,6 +129,7 @@ class UserService:
                     raise HTTPException(status_code=400, detail="No puedes desactivar el último administrador activo")
 
         db_user.activo = activo
+        db_user.token_version += 1
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
@@ -138,7 +145,8 @@ class UserService:
         if db.exec(statement).first():
             raise HTTPException(status_code=400, detail="El nombre de usuario ya está en uso")
 
-        statement = select(User).where(User.email == user_data.email).where(User.id != user_id)
+        email = user_data.email.lower()
+        statement = select(User).where(func.lower(User.email) == email).where(User.id != user_id)
         if db.exec(statement).first():
             raise HTTPException(status_code=400, detail="El correo ya está en uso")
 
@@ -146,10 +154,13 @@ class UserService:
         if not nuevo_rol:
             raise HTTPException(status_code=404, detail="El Rol especificado no existe")
 
+        email_anterior = db_user.email
         db_user.username = user_data.username
-        db_user.email = user_data.email
+        db_user.email = email
         if user_data.password:
             db_user.password = cls.hash_password(user_data.password)
+        if email != email_anterior.lower() or user_data.password:
+            db_user.token_version += 1
 
         db_user.roles = [nuevo_rol]
         
@@ -157,3 +168,27 @@ class UserService:
         db.commit()
         db.refresh(db_user)
         return db_user
+
+    @staticmethod
+    def snapshot(usuario: User) -> dict:
+        return {
+            "username": usuario.username,
+            "email": usuario.email,
+            "password": usuario.password,
+            "roles": sorted(rol.nombre for rol in usuario.roles),
+        }
+
+    @staticmethod
+    def describir_cambios(antes: dict, despues: dict) -> str:
+        cambios = []
+        if antes["username"] != despues["username"]:
+            cambios.append(f"usuario: {antes['username']} → {despues['username']}")
+        if antes["email"] != despues["email"]:
+            cambios.append(f"correo: {antes['email']} → {despues['email']}")
+        if antes["password"] != despues["password"]:
+            cambios.append("contraseña: sí")
+        if antes["roles"] != despues["roles"]:
+            cambios.append(
+                f"rol: {', '.join(antes['roles']) or '—'} → {', '.join(despues['roles']) or '—'}"
+            )
+        return "; ".join(cambios) if cambios else "sin cambios"
