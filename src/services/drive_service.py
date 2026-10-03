@@ -34,6 +34,12 @@ class _BytesIODownloader:
 
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
+# Estructura de carpetas dentro de GOOGLE_DRIVE_FOLDER_ID
+CARPETA_SERVICIOS = "servicios"
+CARPETA_BACKUPS = "backups"
+CARPETA_BASE_DATOS = "backups/base_datos"
+CARPETA_SNAPSHOTS = "backups/archivos"
+
 
 class GoogleDriveService:
     def __init__(self, db: Session):
@@ -130,9 +136,19 @@ class GoogleDriveService:
 
         return creds
 
+    def _servicio(self):
+        creds = self._obtener_credenciales()
+        if not creds:
+            raise RuntimeError("Google Drive no está conectado. Autoriza la integración desde tu perfil.")
+        return build("drive", "v3", credentials=creds)
+
+    @staticmethod
+    def _escapar(nombre: str) -> str:
+        return nombre.replace("\\", "\\\\").replace("'", "\\'")
+
     def _asegurar_carpeta(self, service, parent_id: str, nombre_carpeta: str) -> str:
         query = (
-            f"name='{nombre_carpeta}' and "
+            f"name='{self._escapar(nombre_carpeta)}' and "
             f"'{parent_id}' in parents and "
             f"mimeType='application/vnd.google-apps.folder' and "
             f"trashed=false"
@@ -335,3 +351,98 @@ class GoogleDriveService:
             expira_str = token.token_expiry.isoformat()
 
         return {"autorizado": True, "expira_en": expira_str, "motivo": None}
+
+    # ------------------------------------------------------------------
+    # Utilidades de respaldo
+    # ------------------------------------------------------------------
+
+    def obtener_o_crear_carpeta(self, nombre: str, parent_id: Optional[str] = None) -> str:
+        service = self._servicio()
+        padre = parent_id or self.FOLDER_ID
+        if not padre:
+            raise RuntimeError("No hay una carpeta raíz configurada (GOOGLE_DRIVE_FOLDER_ID).")
+        return self._asegurar_carpeta(service, padre, nombre)
+
+    def listar_contenido(self, carpeta_id: str, tipo: str = "todos") -> list:
+        """Lista de forma paginada lo que hay dentro de una carpeta.
+
+        tipo: "archivos", "carpetas" o "todos".
+        """
+        service = self._servicio()
+        condiciones = [f"'{carpeta_id}' in parents", "trashed=false"]
+        if tipo == "archivos":
+            condiciones.append("mimeType!='application/vnd.google-apps.folder'")
+        elif tipo == "carpetas":
+            condiciones.append("mimeType='application/vnd.google-apps.folder'")
+
+        resultado = []
+        token = None
+        while True:
+            params = {
+                "q": " and ".join(condiciones),
+                "fields": "nextPageToken, files(id, name, mimeType, size, modifiedTime)",
+                "pageSize": 1000,
+            }
+            if token:
+                params["pageToken"] = token
+            respuesta = service.files().list(**params).execute()
+            resultado.extend(respuesta.get("files", []))
+            token = respuesta.get("nextPageToken")
+            if not token:
+                break
+        return resultado
+
+    def copiar_archivo(
+        self, file_id: str, carpeta_destino_id: str, nombre_destino: Optional[str] = None
+    ) -> dict:
+        """Copia un archivo dentro de Drive sin descargarlo ni volverlo a subir."""
+        service = self._servicio()
+        cuerpo = {"parents": [carpeta_destino_id]}
+        if nombre_destino:
+            cuerpo["name"] = nombre_destino
+        try:
+            copia = service.files().copy(
+                fileId=file_id, body=cuerpo, fields="id, name, size"
+            ).execute()
+        except Exception as e:
+            logger.error("Error copiando el archivo %s en Drive: %s", file_id, str(e))
+            raise RuntimeError(f"No se pudo copiar el archivo en Google Drive: {e}")
+        return {
+            "file_id": copia.get("id"),
+            "filename": copia.get("name", ""),
+            "tamano": int(copia.get("size", 0) or 0),
+        }
+
+    def archivo_existe(self, file_id: str) -> bool:
+        if not file_id:
+            return False
+        service = self._servicio()
+        try:
+            service.files().get(fileId=file_id, fields="id").execute()
+            return True
+        except Exception as e:
+            status = getattr(getattr(e, "resp", None), "status", None)
+            if status in (404, 410):
+                return False
+            logger.warning("No se pudo verificar el archivo %s: %s", file_id, str(e))
+            raise
+
+    def eliminar_carpeta_recursiva(self, carpeta_id: str) -> bool:
+        """Borra una carpeta con todo su contenido, de abajo hacia arriba."""
+        service = self._servicio()
+        pendientes = [carpeta_id]
+        orden = []
+        while pendientes:
+            actual = pendientes.pop()
+            orden.append(actual)
+            for hijo in self.listar_contenido(actual, "carpetas"):
+                pendientes.append(hijo["id"])
+
+        for nodo in reversed(orden):
+            for archivo in self.listar_contenido(nodo, "archivos"):
+                service.files().delete(fileId=archivo["id"]).execute()
+            service.files().delete(fileId=nodo).execute()
+        return True
+
+    def obtener_url_directa(self, file_id: str) -> str:
+        return f"https://drive.google.com/uc?id={file_id}"

@@ -6,6 +6,7 @@ import os
 from dotenv import load_dotenv
 from sqlmodel import Session, select
 from src.config.db import engine
+from src.deps.db_session import get_db
 from src.models.user import User, Role, Permission, UserRoleLink, RolePermissionLink
 
 load_dotenv()
@@ -22,10 +23,6 @@ def create_access_token(data: dict) -> str:
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECURITY_KEY, algorithm=ALGORITHM)
     return encoded_jwt
-
-def get_db():
-    with Session(engine) as session:
-        yield session
 
 def decode_token(
     token: str = Depends(oauth2_scheme),

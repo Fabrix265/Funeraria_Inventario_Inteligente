@@ -3,6 +3,7 @@ from typing import Optional
 from io import BytesIO
 from sqlmodel import Session, select, func
 from openpyxl import Workbook
+from src.core.fechas import hora_local_texto
 from src.models.bitacora import Bitacora
 
 
@@ -111,7 +112,7 @@ def exportar_excel(
     for r in registros:
         ws.append([
             r.id,
-            r.created_at.strftime("%d/%m/%Y %H:%M") if r.created_at else "",
+            hora_local_texto(r.created_at),
             r.usuario_nombre,
             r.accion,
             r.modulo,

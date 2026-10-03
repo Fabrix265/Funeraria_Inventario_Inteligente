@@ -1,0 +1,47 @@
+C:\Users\fabri\OneDrive\Desktop\UPAO\Funeraria_Inventario_Inteligente\venv\Lib\site-packages\google\api_core\_python_package_support.py:206: FutureWarning: Package google.api_core depends on grpcio, currently installed at version 1.81.0. grpcio < 1.83.0 does not support Post-Quantum Cryptography (PQC). Support for non-PQC environments is deprecated. In October 2026, Google Cloud Python packages will raise their minimum requirements (including google-api-core, grpcio, and grpcio-status) to enforce grpcio >= 1.83.0. For more details on Google Cloud's post-quantum security migration, visit: https://cloud.google.com/security/resources/post-quantum-cryptography
+  warnings.warn(
+INFO:     Started server process [16432]
+INFO:     Waiting for application startup.
+2026-10-03 14:44:09,051 - src.core.schema_bootstrap - INFO - Esquema de usuarios verificado
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2026-10-03 15:29:05,443 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:06,221 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:07,301 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:08,059 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:09,095 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:09,844 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:10,901 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:11,405 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:11,613 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:12,180 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:12,659 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:13,169 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:13,402 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:13,952 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:14,931 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:15,647 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:16,621 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:17,408 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:19,166 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:19,825 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:21,329 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:22,016 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:23,518 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:24,233 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:25,813 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:26,535 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:27,793 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:28,502 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:29,800 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:30,504 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:31,875 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:32,607 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:33,534 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:34,221 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:35,138 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:35,819 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:36,730 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:37,425 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.
+2026-10-03 15:29:38,374 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2026-10-03 15:29:39,020 - google_auth_httplib2 - INFO - Refreshing credentials due to a 401 response. Attempt 1/2.

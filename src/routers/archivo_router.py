@@ -59,7 +59,9 @@ def subir_archivo(
         usuario_nombre=usuario_nombre,
         accion="crear",
         modulo="archivos",
-        detalle=f"{tipo.value} subido para servicio #{servicio_id}: {file.filename}",
+        detalle=(
+            f"{tipo.value} subido para servicio #{servicio_id}: {archivo.nombre_original}"
+        ),
         ip_address=request.client.host if request.client else None,
     )
 
@@ -130,7 +132,9 @@ def reemplazar_archivo(
         usuario_nombre=usuario_nombre,
         accion="actualizar",
         modulo="archivos",
-        detalle=f"Archivo reemplazado en servicio #{servicio_id}: {file.filename}",
+        detalle=(
+            f"Archivo reemplazado en servicio #{servicio_id}: {archivo.nombre_original}"
+        ),
         ip_address=request.client.host if request.client else None,
     )
 
