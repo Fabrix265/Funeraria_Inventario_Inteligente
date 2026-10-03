@@ -47,6 +47,11 @@ def ejecutar_seeding(db: Session):
         {"nombre": "archivos:subir",    "descripcion": "Subir archivos a servicios"},
         {"nombre": "archivos:editar",   "descripcion": "Reemplazar archivos de servicios"},
         {"nombre": "archivos:eliminar", "descripcion": "Eliminar archivos de servicios"},
+
+        {"nombre": "respaldos:listar",    "descripcion": "Ver el historial de respaldos del sistema"},
+        {"nombre": "respaldos:crear",     "descripcion": "Generar respaldos de la base de datos y archivos"},
+        {"nombre": "respaldos:restaurar", "descripcion": "Restaurar la base de datos y los archivos desde un respaldo"},
+        {"nombre": "respaldos:eliminar",  "descripcion": "Eliminar respaldos antiguos de Google Drive"},
     ]
 
     permisos_db = []
