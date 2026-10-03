@@ -89,6 +89,39 @@ def listar_respaldos(db: SessionDep):
 
 
 @respaldo_router.post(
+    "/resincronizar",
+    dependencies=[Depends(CheckerPermisos("respaldos:listar"))],
+)
+def resincronizar(db: SessionDep, request: Request, token: dict = Depends(decode_token)):
+    """Vuelve a armar la lista de respaldos a partir de los manifiestos de Drive."""
+    return respaldo_service.resincronizar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        ip_address=request.client.host if request.client else None,
+    )
+
+
+@respaldo_router.delete(
+    "/{respaldo_id}",
+    dependencies=[Depends(CheckerPermisos("respaldos:eliminar"))],
+)
+def eliminar_respaldo(
+    respaldo_id: int,
+    db: SessionDep,
+    request: Request,
+    token: dict = Depends(decode_token),
+):
+    return respaldo_service.eliminar(
+        db,
+        respaldo_id,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        ip_address=request.client.host if request.client else None,
+    )
+
+
+@respaldo_router.post(
     "/",
     status_code=202,
     dependencies=[Depends(CheckerPermisos("respaldos:crear"))],

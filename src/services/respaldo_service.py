@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from fastapi import HTTPException
+from sqlalchemy import text
 from sqlmodel import Session, select, func
 
 from src.config.db import engine, POSTGRES_DB
@@ -32,8 +33,8 @@ PASOS_RESPALDO = [
     "Verificando el entorno",
     "Volcando la base de datos",
     "Subiendo el archivo .sql",
-    "Escribiendo el manifiesto",
     "Copiando los documentos de servicios",
+    "Escribiendo el manifiesto",
     "Replicando el historico de respaldos .sql",
     "Registrando el respaldo",
 ]
@@ -159,14 +160,276 @@ def descargar(db: Session, respaldo_id: int) -> Tuple[bytes, str]:
     return datos, respaldo.nombre_archivo
 
 
+def _quitar_de_drive(db: Session, respaldo: Respaldo) -> bool:
+    """Borra de Drive el .sql, su manifiesto y la carpeta de documentos.
+
+    Devuelve False si no se pudo borrar el .sql principal; el resto se hace
+    "best effort" porque no invalidan la operación.
+    """
+    drive = GoogleDriveService(db)
+    ok = True
+
+    if respaldo.drive_file_id and not drive.eliminar_archivo(respaldo.drive_file_id):
+        logger.error("No se pudo borrar de Drive el archivo %s", respaldo.nombre_archivo)
+        ok = False
+
+    if respaldo.drive_manifesto_id and not drive.eliminar_archivo(respaldo.drive_manifesto_id):
+        logger.warning("No se pudo borrar de Drive el manifiesto de %s", respaldo.etiqueta)
+
+    if respaldo.drive_folder_archivos_id and not drive.eliminar_carpeta_recursiva(
+        respaldo.drive_folder_archivos_id
+    ):
+        logger.warning("No se pudo borrar de Drive el snapshot de %s", respaldo.etiqueta)
+
+    return ok
+
+
+def eliminar(
+    db: Session,
+    respaldo_id: int,
+    usuario_id: Optional[int],
+    usuario_nombre: str,
+    ip_address: Optional[str] = None,
+) -> dict:
+    respaldo = obtener(db, respaldo_id)
+
+    if respaldo.estado != "completado":
+        raise HTTPException(
+            status_code=409,
+            detail="Solo se pueden eliminar respaldos que terminaron correctamente.",
+        )
+
+    completados = listar_completados(db)
+
+    if len(completados) <= 2:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "El sistema debe conservar al menos 2 respaldos, por lo que este "
+                "no se puede eliminar."
+            ),
+        )
+
+    if completados[0].id != respaldo_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Solo se puede eliminar el respaldo más antiguo. Elimina ese primero.",
+        )
+
+    if not _quitar_de_drive(db, respaldo):
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "No se pudo eliminar el archivo del respaldo desde Google Drive. "
+                "Intenta nuevamente."
+            ),
+        )
+
+    etiqueta = respaldo.etiqueta
+    db.delete(respaldo)
+    db.commit()
+
+    bitacora_service.registrar(
+        db,
+        usuario_id=usuario_id,
+        usuario_nombre=usuario_nombre,
+        accion="eliminar",
+        modulo="respaldos",
+        detalle=f"Respaldo #{respaldo_id} ({etiqueta}) eliminado",
+        ip_address=ip_address,
+    )
+
+    restantes = contar_completados(db)
+    return {
+        "eliminado": True,
+        "respaldo_id": respaldo_id,
+        "respaldos_restantes": restantes,
+        "puede_eliminar_otro": restantes > 2,
+    }
+
+
+def _podar_por_maximo(db: Session) -> int:
+    """Conserva como máximo N respaldos retirando los más antiguos.
+
+    Se ejecuta al finalizar una creación, nunca antes: si el respaldo nuevo
+    falla no se pierde ninguno anterior.
+    """
+    config = obtener_config(db)
+    completados = listar_completados(db)
+    if len(completados) <= config.maximo_respaldos:
+        return 0
+
+    excedentes = completados[: len(completados) - config.maximo_respaldos]
+    retirados = 0
+    for viejo in excedentes:
+        if not _quitar_de_drive(db, viejo):
+            break
+        db.delete(viejo)
+        db.commit()
+        retirados += 1
+        logger.info(
+            "Respaldo antiguo #%s retirado por el límite de %s respaldos",
+            viejo.id, config.maximo_respaldos,
+        )
+    return retirados
+
+
+def resincronizar(
+    db: Session,
+    usuario_id: Optional[int] = None,
+    usuario_nombre: str = "",
+    ip_address: Optional[str] = None,
+    registrar_bitacora: bool = True,
+) -> dict:
+    """Reconstruye la tabla de respaldos a partir de los manifiestos de Drive.
+
+    Es la fuente de verdad: si la base de datos fue restaurada y la tabla
+    'respaldo' quedó vacía o atrasada, este proceso la pone al día.
+    """
+    drive = GoogleDriveService(db)
+    carpeta_bd = _asegurar_ruta(drive, CARPETA_BASE_DATOS)
+
+    encontrados: dict = {}
+    ilegibles = 0
+    for item in drive.listar_contenido(carpeta_bd, "archivos"):
+        if not item.get("name", "").lower().endswith(".json"):
+            continue
+        crudo = drive.descargar_archivo(item["id"])
+        if not crudo:
+            ilegibles += 1
+            continue
+        try:
+            datos = json.loads(crudo)
+        except (ValueError, UnicodeDecodeError):
+            ilegibles += 1
+            continue
+        if not isinstance(datos, dict) or datos.get("id") is None:
+            continue
+        encontrados[int(datos["id"])] = (datos, item["id"])
+
+    existentes = {r.id: r for r in db.exec(select(Respaldo)).all()}
+    creados = actualizados = 0
+
+    for respaldo_id, (datos, manifiesto_id) in sorted(encontrados.items()):
+        campos = {
+            "etiqueta": datos.get("etiqueta") or f"Respaldo {respaldo_id}",
+            "fecha": _parsear_fecha(datos.get("fecha")),
+            "nombre_archivo": datos.get("nombre_archivo") or datos.get("archivo") or "",
+            "drive_file_id": datos.get("drive_file_id") or "",
+            "drive_manifesto_id": manifiesto_id,
+            "drive_folder_archivos_id": datos.get("drive_folder_archivos_id"),
+            "tamano_bytes": int(datos.get("tamano_bytes") or 0),
+            "sha256": datos.get("sha256"),
+            "cantidad_archivos": int(datos.get("cantidad_archivos") or 0),
+            "estado": datos.get("estado") or "completado",
+            "tipo": datos.get("tipo") or "manual",
+            "observacion": datos.get("observacion"),
+            "usuario_id": datos.get("usuario_id"),
+            "usuario_nombre": datos.get("usuario_nombre") or datos.get("usuario") or "",
+        }
+
+        fila = existentes.get(respaldo_id)
+        if fila:
+            for campo, valor in campos.items():
+                setattr(fila, campo, valor)
+            fila.estado = _estado_definitivo(fila.estado)
+            fila.updated_at = datetime.utcnow()
+            db.add(fila)
+            actualizados += 1
+        else:
+            campos["estado"] = _estado_definitivo(campos["estado"])
+            db.add(Respaldo(id=respaldo_id, **campos))
+            creados += 1
+
+    borrados = 0
+    for fila in existentes.values():
+        if fila.id in encontrados or fila.estado == "en_proceso":
+            continue
+        db.delete(fila)
+        borrados += 1
+
+    db.commit()
+    _resetear_secuencia(db)
+
+    if registrar_bitacora:
+        bitacora_service.registrar(
+            db,
+            usuario_id=usuario_id,
+            usuario_nombre=usuario_nombre,
+            accion="actualizar",
+            modulo="respaldos",
+            detalle=(
+                f"Respaldos resincronizados desde Google Drive "
+                f"({creados} nuevos, {actualizados} actualizados, {borrados} retirados)"
+            ),
+            ip_address=ip_address,
+        )
+
+    return {
+        "creados": creados,
+        "actualizados": actualizados,
+        "eliminados": borrados,
+        "manifiestos_ilegibles": ilegibles,
+        "total": len(encontrados),
+    }
+
+
+def _estado_definitivo(valor: str) -> str:
+    """Los manifiestos más antiguos guardaban el estado transitorio
+    'en_proceso'; para la lista eso ya es terminal: el archivo está en Drive."""
+    return valor if valor in ("completado", "fallido") else "completado"
+
+
+def _parsear_fecha(valor):
+    if isinstance(valor, datetime):
+        return valor
+    if not valor:
+        return datetime.utcnow()
+    try:
+        return datetime.fromisoformat(str(valor).replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        return datetime.utcnow()
+
+
+def _resetear_secuencia(db: Session) -> None:
+    """Ajusta la secuencia de 'respaldo.id' tras cargar ids fijos desde Drive."""
+    try:
+        db.exec(
+            text(
+                "SELECT setval(pg_get_serial_sequence('respaldo','id'), "
+                "COALESCE((SELECT MAX(id) FROM respaldo), 0) + 1, false)"
+            )
+        )
+        db.commit()
+    except Exception as error:
+        db.rollback()
+        logger.warning("No se pudo ajustar la secuencia de respaldo.id: %s", error)
+
+
 def listar(db: Session) -> List[Respaldo]:
     return list(db.exec(select(Respaldo).order_by(Respaldo.fecha.desc())).all())
+
+
+def listar_completados(db: Session) -> List[Respaldo]:
+    """Respaldos buenos, del más antiguo al más reciente."""
+    return list(
+        db.exec(
+            select(Respaldo)
+            .where(Respaldo.estado == "completado")
+            .order_by(Respaldo.fecha.asc(), Respaldo.id.asc())
+        ).all()
+    )
 
 
 def contar_completados(db: Session) -> int:
     return db.exec(
         select(func.count(Respaldo.id)).where(Respaldo.estado == "completado")
     ).one()
+
+
+def obtener_mas_antiguo(db: Session) -> Optional[Respaldo]:
+    completados = listar_completados(db)
+    return completados[0] if completados else None
 
 
 def obtener(db: Session, respaldo_id: int) -> Respaldo:
@@ -292,10 +555,10 @@ def ejecutar_respaldo(
         _verificar_entorno(db, job)
         ruta_sql, bytes_sql, nombre_sql, tamano, sha = _volcar(job, marca)
         _subir_sql(db, job, respaldo, nombre_sql, bytes_sql, tamano, sha)
-        _escribir_manifiesto(db, job, respaldo, nombre_sql, tamano, sha, usuario_nombre)
         fallidos = _copiar_documentos(db, job, respaldo, marca)
+        _escribir_manifiesto(db, job, respaldo, nombre_sql, tamano, sha, usuario_nombre)
         historico = _replicar_historico(db, job, respaldo, marca)
-        _registrar(db, job, respaldo, usuario_id, usuario_nombre, ip_address)
+        poda = _registrar(db, job, respaldo, usuario_id, usuario_nombre, ip_address)
     except Exception as error:
         if respaldo is not None:
             _fallido(db, respaldo, error)
@@ -309,6 +572,7 @@ def ejecutar_respaldo(
             "cantidad_archivos": respaldo.cantidad_archivos,
             "documentos_fallidos": fallidos,
             "historico_copiado": historico,
+            **poda,
         }
     )
     return respaldo
@@ -392,17 +656,25 @@ def _escribir_manifiesto(
     Ese archivo es la fuente de verdad: si la tabla 'respaldo' se pierde al
     restaurar, el historial se reconstruye leyendo estos manifiestos.
     """
-    with job.paso(PASOS_RESPALDO[3]):
+    with job.paso(PASOS_RESPALDO[4]):
         manifiesto = {
             "id": respaldo.id,
             "etiqueta": respaldo.etiqueta,
             "fecha": respaldo.fecha.isoformat(),
             "tipo": respaldo.tipo,
-            "archivo": nombre_sql,
+            # El manifiesto se escribe cuando todo ya está en Drive, así que a
+            # partir de ahí el respaldo es válido: no debe heredar el
+            # estado transitorio "en_proceso" de la fila.
+            "estado": "completado",
+            "observacion": respaldo.observacion,
+            "nombre_archivo": nombre_sql,
             "drive_file_id": respaldo.drive_file_id,
             "tamano_bytes": tamano,
             "sha256": sha,
-            "usuario": usuario_nombre,
+            "cantidad_archivos": respaldo.cantidad_archivos,
+            "drive_folder_archivos_id": respaldo.drive_folder_archivos_id,
+            "usuario_id": respaldo.usuario_id,
+            "usuario_nombre": usuario_nombre,
             "base_datos": POSTGRES_DB,
         }
         nombre_json = nombre_sql.rsplit(".", 1)[0] + ".json"
@@ -419,7 +691,7 @@ def _escribir_manifiesto(
 
 def _copiar_documentos(db: Session, job, respaldo: Respaldo, marca: str) -> list:
     """Copia todos los documentos de servicios a backups/archivos/<marca>/."""
-    with job.paso(PASOS_RESPALDO[4]):
+    with job.paso(PASOS_RESPALDO[3]):
         drive = GoogleDriveService(db)
         carpeta_snapshots = _asegurar_ruta(drive, CARPETA_SNAPSHOTS)
         carpeta_snapshot = drive.obtener_o_crear_carpeta(marca, carpeta_snapshots)
@@ -519,11 +791,13 @@ def _replicar_historico(db: Session, job, respaldo: Respaldo, marca: str) -> int
 def _registrar(
     db: Session, job, respaldo: Respaldo,
     usuario_id: Optional[int], usuario_nombre: str, ip_address: Optional[str],
-) -> None:
+) -> dict:
     with job.paso(PASOS_RESPALDO[6]):
         respaldo.estado = "completado"
         respaldo.mensaje_error = None
         _guardar(db, respaldo)
+
+        retirados = _podar_por_maximo(db)
 
         bitacora_service.registrar(
             db,
@@ -534,9 +808,11 @@ def _registrar(
             detalle=(
                 f"Respaldo #{respaldo.id} generado ({formatear_tamano(respaldo.tamano_bytes)}, "
                 f"{respaldo.cantidad_archivos} documentos)"
+                + (f"; se retiraron {retirados} respaldo(s) antiguos" if retirados else "")
             ),
             ip_address=ip_address,
         )
+        return {"respaldos_retirados": retirados}
 
 
 def _fallido(db: Session, respaldo: Respaldo, error: Exception) -> None:
