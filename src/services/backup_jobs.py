@@ -67,6 +67,13 @@ class JobRespaldo:
             with self._lock:
                 paso.estado = "completado"
 
+    def omitir(self, nombre: str, mensaje: str):
+        """Marca un paso como hecho pero sin ejecutarlo (elección del usuario)."""
+        paso = self._buscar(nombre)
+        with self._lock:
+            paso.estado = "completado"
+            paso.mensaje = mensaje
+
     def terminar(self, resultado: Optional[dict] = None, mensaje: Optional[str] = None):
         with self._lock:
             if self.estado == "en_proceso":

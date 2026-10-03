@@ -3,8 +3,10 @@ import json
 import logging
 import os
 import re
+import secrets
 import tempfile
 import time
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -14,8 +16,10 @@ from sqlalchemy import text
 from sqlmodel import Session, select, func
 
 from src.config.db import engine, POSTGRES_DB
-from src.models.respaldo import Respaldo, RespaldoConfig
+from src.core.lifespan import inicializar_base_de_datos
+from src.models.respaldo import Respaldo, RespaldoConfig, TokenRestauracion
 from src.models.servicio_archivo import ServicioArchivo
+from src.models.user import User
 from src.schemas.respaldo import RespaldoLeer, RespaldoEstadoLeer
 from src.services import backup_jobs, bitacora_service, pg_service
 from src.services.archivo_service import obtener_carpeta_servicio
@@ -160,6 +164,28 @@ def descargar(db: Session, respaldo_id: int) -> Tuple[bytes, str]:
     return datos, respaldo.nombre_archivo
 
 
+def _borrar_tokens(db: Session, respaldo_ids) -> int:
+    """Quita los códigos de confirmación de los respaldos que van a borrarse.
+
+    La tabla token_restauracion apunta a respaldo.id y bloquearía el DELETE.
+    """
+    ids = [i for i in respaldo_ids if i]
+    if not ids:
+        return 0
+    filas = list(
+        db.exec(
+            select(TokenRestauracion).where(TokenRestauracion.respaldo_id.in_(ids))
+        ).all()
+    )
+    for fila in filas:
+        db.delete(fila)
+    if filas:
+        # Se fuerza el DELETE ahora: sin esto, el orden del mismo flush no
+        # está garantizado y 'respaldo' se borraría antes que sus códigos.
+        db.flush()
+    return len(filas)
+
+
 def _quitar_de_drive(db: Session, respaldo: Respaldo) -> bool:
     """Borra de Drive el .sql, su manifiesto y la carpeta de documentos.
 
@@ -226,6 +252,7 @@ def eliminar(
         )
 
     etiqueta = respaldo.etiqueta
+    _borrar_tokens(db, [respaldo_id])
     db.delete(respaldo)
     db.commit()
 
@@ -264,6 +291,7 @@ def _podar_por_maximo(db: Session) -> int:
     for viejo in excedentes:
         if not _quitar_de_drive(db, viejo):
             break
+        _borrar_tokens(db, [viejo.id])
         db.delete(viejo)
         db.commit()
         retirados += 1
@@ -342,11 +370,20 @@ def resincronizar(
             creados += 1
 
     borrados = 0
-    for fila in existentes.values():
-        if fila.id in encontrados or fila.estado == "en_proceso":
-            continue
-        db.delete(fila)
-        borrados += 1
+    activo = backup_jobs.en_ejecucion()
+    en_curso = {activo.respaldo_id} if activo and activo.respaldo_id else set()
+    huerfanos = [
+        fila.id
+        for fila in existentes.values()
+        # Se conservan los que están en Drive y el que se está creando ahora
+        # mismo; un "en proceso" huérfano es un resto de una corrida fallida.
+        if fila.id not in encontrados and fila.id not in en_curso
+    ]
+    if huerfanos:
+        _borrar_tokens(db, huerfanos)
+        for respaldo_id in huerfanos:
+            db.delete(existentes[respaldo_id])
+            borrados += 1
 
     db.commit()
     _resetear_secuencia(db)
@@ -546,11 +583,14 @@ def ejecutar_respaldo(
     usuario_nombre: str,
     observacion: Optional[str],
     ip_address: Optional[str] = None,
+    tipo: str = "manual",
 ) -> Respaldo:
     marca = _marca()
     respaldo: Optional[Respaldo] = None
     try:
-        respaldo = _nueva_fila(db, job, marca, usuario_id, usuario_nombre, observacion)
+        respaldo = _nueva_fila(
+            db, job, marca, usuario_id, usuario_nombre, observacion, tipo
+        )
 
         _verificar_entorno(db, job)
         ruta_sql, bytes_sql, nombre_sql, tamano, sha = _volcar(job, marca)
@@ -585,6 +625,7 @@ def _nueva_fila(
     usuario_id: Optional[int],
     usuario_nombre: str,
     observacion: Optional[str],
+    tipo: str = "manual",
 ) -> Respaldo:
     respaldo = Respaldo(
         etiqueta=f"Respaldo {marca}",
@@ -592,7 +633,7 @@ def _nueva_fila(
         nombre_archivo="",
         drive_file_id="",
         estado="en_proceso",
-        tipo="manual",
+        tipo=tipo,
         observacion=observacion,
         usuario_id=usuario_id,
         usuario_nombre=usuario_nombre,
@@ -840,5 +881,459 @@ def tarea_crear(
             ejecutar_respaldo(db, job, usuario_id, usuario_nombre, observacion, ip_address)
     except Exception as error:
         logger.exception("El job de respaldo %s terminó con error", job_id)
+        if job.estado == "en_proceso":
+            job.fallar(str(error))
+
+
+# ---------------------------------------------------------------------------
+# Codigo de confirmacion de la restauracion
+# ---------------------------------------------------------------------------
+
+VIGENCIA_CODIGO_MINUTOS = 10
+MAXIMO_INTENTOS_CODIGO = 6
+
+
+def _hash_codigo(codigo: str) -> str:
+    return hashlib.sha256(codigo.encode("utf-8")).hexdigest()
+
+
+def generar_codigo(
+    db: Session,
+    respaldo_id: int,
+    usuario_id: Optional[int],
+    usuario_nombre: str = "",
+    ip_address: Optional[str] = None,
+) -> dict:
+    respaldo = obtener(db, respaldo_id)
+    if respaldo.estado != "completado":
+        raise HTTPException(
+            status_code=409,
+            detail="Solo se puede restaurar un respaldo que terminó correctamente.",
+        )
+
+    previos = db.exec(
+        select(TokenRestauracion).where(
+            TokenRestauracion.respaldo_id == respaldo_id,
+            TokenRestauracion.usado_en.is_(None),
+        )
+    ).all()
+    for anterior in previos:
+        db.delete(anterior)
+
+    codigo = secrets.token_hex(6)  # 12 caracteres, 48 bits
+    fila = TokenRestauracion(
+        respaldo_id=respaldo_id,
+        usuario_id=usuario_id,
+        token_hash=_hash_codigo(codigo),
+        expira_en=datetime.utcnow() + timedelta(minutes=VIGENCIA_CODIGO_MINUTOS),
+    )
+    db.add(fila)
+    db.commit()
+    db.refresh(fila)
+
+    bitacora_service.registrar(
+        db,
+        usuario_id=usuario_id,
+        usuario_nombre=usuario_nombre,
+        accion="generar",
+        modulo="respaldos",
+        detalle=f"Código de confirmación emitido para restaurar el respaldo #{respaldo_id}",
+        ip_address=ip_address,
+    )
+
+    return {"token": codigo, "expira_en": fila.expira_en}
+
+
+def validar_codigo(
+    db: Session,
+    respaldo_id: int,
+    codigo: str,
+    usuario_id: Optional[int],
+) -> None:
+    ahora = datetime.utcnow()
+    activos = list(
+        db.exec(
+            select(TokenRestauracion).where(
+                TokenRestauracion.respaldo_id == respaldo_id,
+                TokenRestauracion.usado_en.is_(None),
+                TokenRestauracion.expira_en > ahora,
+            )
+        ).all()
+    )
+
+    coincidencia = next(
+        (f for f in activos if f.token_hash == _hash_codigo(codigo)), None
+    )
+
+    if not coincidencia:
+        for fila in activos:
+            fila.intentos = (fila.intentos or 0) + 1
+            if fila.intentos >= MAXIMO_INTENTOS_CODIGO:
+                fila.usado_en = ahora
+            db.add(fila)
+        db.commit()
+        raise HTTPException(
+            status_code=400,
+            detail="El código de confirmación no es válido.",
+        )
+
+    if coincidencia.usuario_id and usuario_id and coincidencia.usuario_id != usuario_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Ese código fue generado por otro usuario. Genera uno nuevo.",
+        )
+
+    coincidencia.usado_en = ahora
+    db.add(coincidencia)
+    db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Restauracion
+# ---------------------------------------------------------------------------
+
+def crear_job_restauracion(respaldo_id: int):
+    job = backup_jobs.crear("restauracion", PASOS_RESTAURACION, respaldo_id)
+    return job
+
+
+def crear_job_recuperacion(respaldo_id: int):
+    job = backup_jobs.crear("recuperacion", PASOS_RECUPERAR, respaldo_id)
+    return job
+
+
+def ejecutar_restauracion(
+    job,
+    respaldo_id: int,
+    usuario_id: Optional[int],
+    usuario_nombre: str,
+    ver_token: Optional[int],
+    restaurar_archivos: bool = True,
+    ip_address: Optional[str] = None,
+) -> dict:
+    """Restaura la base de datos y los documentos desde un respaldo.
+
+    Cada fase usa su propia sesión: al reconstruir las tablas, cualquier
+    sesión abierta anteriormente queda inservible.
+    """
+    # --- 1. Verificar el archivo -----------------------------------------
+    with job.paso(PASOS_RESTAURACION[0]):
+        if not pg_service.disponibilidad()["psql_disponible"]:
+            raise RuntimeError(
+                "No se encontró 'psql'. Instala el cliente de PostgreSQL o define "
+                "PSQL_PATH en el archivo .env del backend."
+            )
+        with Session(engine) as db:
+            respaldo = obtener(db, respaldo_id)
+            if respaldo.estado != "completado":
+                raise RuntimeError(
+                    "Ese respaldo no se puede restaurar porque no terminó bien."
+                )
+            drive = GoogleDriveService(db)
+            datos = drive.descargar_archivo(respaldo.drive_file_id)
+            if not datos:
+                raise RuntimeError(
+                    "No se pudo descargar el archivo .sql desde Google Drive."
+                )
+            nombre = respaldo.nombre_archivo or f"respaldo_{respaldo_id}.sql"
+            ruta_sql = directorio_trabajo() / nombre
+            ruta_sql.write_bytes(datos)
+            if respaldo.sha256 and _sha256_de(ruta_sql) != respaldo.sha256:
+                raise RuntimeError(
+                    "El archivo del respaldo está dañado: el checksum no coincide "
+                    "con el registrado al generarlo."
+                )
+            manifiesto = _leer_manifiesto_documentos(drive, respaldo)
+            snapshot_id = respaldo.drive_folder_archivos_id
+
+    # --- 2. Respaldo de seguridad de lo que hay ahora ---------------------
+    with job.paso(PASOS_RESTAURACION[1]):
+        job_seguridad = backup_jobs.JobRespaldo(
+            uuid.uuid4().hex[:16], "creacion", list(PASOS_RESPALDO)
+        )
+        with Session(engine) as db:
+            ejecutar_respaldo(
+                db,
+                job_seguridad,
+                usuario_id,
+                usuario_nombre,
+                f"Respaldo de seguridad previo a la restauración del respaldo #{respaldo_id}",
+                ip_address,
+                tipo="seguridad",
+            )
+        if job_seguridad.estado != "completado" or not job_seguridad.respaldo_id:
+            raise RuntimeError(
+                "No se pudo generar el respaldo de seguridad. La restauración se canceló."
+            )
+        seguridad_id = job_seguridad.respaldo_id
+
+    # --- 3. Restaurar la base de datos ------------------------------------
+    with job.paso(PASOS_RESTAURACION[2]):
+        engine.dispose()
+        cerradas = pg_service.cerrar_conexiones_ajenas()
+        if cerradas:
+            logger.warning("Se cerraron %s conexiones antes de restaurar", cerradas)
+        try:
+            pg_service.restaurar(ruta_sql)
+        finally:
+            engine.dispose()
+
+    # --- 4. Documentos de servicios ---------------------------------------
+    recuperados = {"revisados": 0, "recuperados": 0, "omitidos": 0, "fallidos": 0}
+    if restaurar_archivos:
+        with job.paso(PASOS_RESTAURACION[3]):
+            with Session(engine) as db:
+                recuperados = _recuperar_documentos(
+                    db, respaldo_id, manifiesto, snapshot_id
+                )
+    else:
+        job.omitir(
+            PASOS_RESTAURACION[3],
+            "Omitido: el administrador eligió restaurar solo la base de datos.",
+        )
+
+    # --- 5. Reconectar y verificar ----------------------------------------
+    with job.paso(PASOS_RESTAURACION[4]):
+        engine.dispose()
+        inicializar_base_de_datos()
+        with Session(engine) as db:
+            invalidadas = _invalidar_sesiones(db, usuario_id, usuario_nombre, ver_token)
+            resumen_respaldos = resincronizar(
+                db,
+                usuario_id=usuario_id,
+                usuario_nombre=usuario_nombre,
+                ip_address=ip_address,
+                registrar_bitacora=False,
+            )
+            bitacora_service.registrar(
+                db,
+                usuario_id=usuario_id,
+                usuario_nombre=usuario_nombre,
+                accion="restaurar",
+                modulo="respaldos",
+                detalle=(
+                    f"Base de datos restaurada desde el respaldo #{respaldo_id}; "
+                    f"respaldo de seguridad #{seguridad_id} generado antes; "
+                    f"{invalidadas} sesión(es) cerrada(s)"
+                ),
+                ip_address=ip_address,
+            )
+
+    resultado = {
+        "respaldo_id": respaldo_id,
+        "respaldo_seguridad_id": seguridad_id,
+        "documentos": recuperados,
+        "sesiones_cerradas": invalidadas,
+        "respaldos_resincronizados": resumen_respaldos,
+        "archivos_restaurados": restaurar_archivos,
+    }
+    job.terminar(resultado)
+    return resultado
+
+
+def tarea_restaurar(
+    job_id: str,
+    respaldo_id: int,
+    usuario_id: Optional[int],
+    usuario_nombre: str,
+    ver_token: Optional[int],
+    restaurar_archivos: bool = True,
+    ip_address: Optional[str] = None,
+) -> None:
+    job = backup_jobs.obtener(job_id)
+    if not job:
+        return
+    try:
+        ejecutar_restauracion(
+            job,
+            respaldo_id,
+            usuario_id,
+            usuario_nombre,
+            ver_token,
+            restaurar_archivos,
+            ip_address,
+        )
+    except Exception as error:
+        logger.exception("La restauración del respaldo %s falló", respaldo_id)
+        if job.estado == "en_proceso":
+            job.fallar(str(error))
+
+
+def _leer_manifiesto_documentos(
+    drive: GoogleDriveService, respaldo: Respaldo
+) -> Optional[dict]:
+    """Lee el _manifiesto_<marca>.json que describe el snapshot de documentos."""
+    if not respaldo.drive_folder_archivos_id:
+        return None
+    try:
+        for item in drive.listar_contenido(respaldo.drive_folder_archivos_id, "archivos"):
+            nombre = item.get("name", "")
+            if not (nombre.startswith("_manifiesto_") and nombre.endswith(".json")):
+                continue
+            crudo = drive.descargar_archivo(item["id"])
+            if crudo:
+                return json.loads(crudo)
+    except Exception as error:
+        logger.warning("No se pudo leer el manifiesto de documentos: %s", error)
+    return None
+
+
+def _recuperar_documentos(
+    db: Session,
+    respaldo_id: int,
+    manifiesto: Optional[dict],
+    snapshot_id: Optional[str],
+) -> dict:
+    """Vuelve a copiar a Drive los documentos que hoy no existen.
+
+    Solo rellena huecos: nunca toca archivos que siguen ahí, así que no se
+    pierde ningún documento subido después del respaldo.
+    """
+    resumen = {"revisados": 0, "recuperados": 0, "omitidos": 0, "fallidos": 0}
+    entradas = (manifiesto or {}).get("archivos") or []
+    if not entradas or not snapshot_id:
+        resumen["fallidos"] = 0
+        return resumen
+
+    por_nombre = {
+        (e.get("id_servicio"), e.get("nombre_original")): e for e in entradas
+    }
+
+    drive = GoogleDriveService(db)
+    carpeta_servicios = _asegurar_ruta(drive, CARPETA_SERVICIOS)
+    archivos = list(db.exec(select(ServicioArchivo)).all())
+
+    for archivo in archivos:
+        resumen["revisados"] += 1
+        try:
+            if archivo.drive_file_id and drive.archivo_existe(archivo.drive_file_id):
+                resumen["omitidos"] += 1
+                continue
+        except Exception:
+            # No pudimos comprobarlo: asumimos que hace falta y seguimos.
+            pass
+
+        entrada = por_nombre.get((archivo.id_servicio, archivo.nombre_original))
+        if not entrada or not entrada.get("copia_file_id"):
+            resumen["fallidos"] += 1
+            continue
+
+        try:
+            carpeta = obtener_carpeta_servicio(archivo.servicio)
+        except Exception:
+            carpeta = "sin_servicio"
+
+        try:
+            carpeta_destino = drive.obtener_o_crear_carpeta(carpeta, carpeta_servicios)
+            copia = drive.copiar_archivo(
+                entrada["copia_file_id"], carpeta_destino, archivo.nombre_original
+            )
+            archivo.drive_file_id = copia["file_id"]
+            db.add(archivo)
+            resumen["recuperados"] += 1
+        except Exception as error:
+            logger.warning(
+                "No se pudo recuperar %s: %s", archivo.nombre_original, error
+            )
+            resumen["fallidos"] += 1
+
+    db.commit()
+    return resumen
+
+
+def _invalidar_sesiones(
+    db: Session,
+    usuario_id: Optional[int],
+    usuario_nombre: Optional[str],
+    ver_token: Optional[int],
+) -> int:
+    """Cierra todas las sesiones abiertas menos la del que está restaurando.
+
+    Al reconstruir la base de datos cambian los ids y las versiones de
+    token; forzar el cambio evita que quede viva una sesión con credenciales
+    antiguas. El administrador conserva la suya para ver el resultado.
+    """
+    usuarios = list(db.exec(select(User)).all())
+    if not usuarios:
+        return 0
+
+    destino = None
+    if usuario_nombre:
+        destino = next((u for u in usuarios if u.username == usuario_nombre), None)
+    if destino is None and usuario_id:
+        destino = next((u for u in usuarios if u.id == usuario_id), None)
+
+    cerradas = 0
+    for usuario in usuarios:
+        if destino is not None and usuario.id == destino.id:
+            objetivo = int(ver_token) if ver_token else (usuario.token_version or 0)
+            if usuario.token_version != objetivo:
+                usuario.token_version = objetivo
+                db.add(usuario)
+            continue
+        usuario.token_version = (usuario.token_version or 0) + 1
+        db.add(usuario)
+        cerradas += 1
+
+    db.commit()
+    return cerradas
+
+
+def ejecutar_recuperacion(
+    job,
+    respaldo_id: int,
+    usuario_id: Optional[int],
+    usuario_nombre: str,
+    ip_address: Optional[str] = None,
+) -> dict:
+    """Solo repone los documentos de un respaldo, sin tocar la base de datos."""
+    with job.paso(PASOS_RECUPERAR[0]):
+        with Session(engine) as db:
+            respaldo = obtener(db, respaldo_id)
+            if respaldo.estado != "completado":
+                raise RuntimeError("Ese respaldo no contiene documentos utilizables.")
+            drive = GoogleDriveService(db)
+            manifiesto = _leer_manifiesto_documentos(drive, respaldo)
+            snapshot_id = respaldo.drive_folder_archivos_id
+
+    with job.paso(PASOS_RECUPERAR[1]):
+        with Session(engine) as db:
+            resumen = _recuperar_documentos(db, respaldo_id, manifiesto, snapshot_id)
+
+    with job.paso(PASOS_RECUPERAR[2]):
+        with Session(engine) as db:
+            bitacora_service.registrar(
+                db,
+                usuario_id=usuario_id,
+                usuario_nombre=usuario_nombre,
+                accion="actualizar",
+                modulo="respaldos",
+                detalle=(
+                    f"Documentos recuperados desde el respaldo #{respaldo_id}: "
+                    f"{resumen['recuperados']} de {resumen['revisados']}"
+                ),
+                ip_address=ip_address,
+            )
+
+    job.terminar({"respaldo_id": respaldo_id, "documentos": resumen})
+    return resumen
+
+
+def tarea_recuperar(
+    job_id: str,
+    respaldo_id: int,
+    usuario_id: Optional[int],
+    usuario_nombre: str,
+    ip_address: Optional[str] = None,
+) -> None:
+    job = backup_jobs.obtener(job_id)
+    if not job:
+        return
+    try:
+        ejecutar_recuperacion(
+            job, respaldo_id, usuario_id, usuario_nombre, ip_address
+        )
+    except Exception as error:
+        logger.exception("La recuperación de documentos del respaldo %s falló", respaldo_id)
         if job.estado == "en_proceso":
             job.fallar(str(error))

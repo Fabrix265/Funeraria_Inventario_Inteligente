@@ -1,4 +1,5 @@
 import glob
+import logging
 import os
 import re
 import shutil
@@ -7,6 +8,8 @@ from pathlib import Path
 from typing import Optional
 
 from src.config.db import POSTGRES_SERVER, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+
+logger = logging.getLogger(__name__)
 
 # En Windows evitamos que se abra una ventana de consola por cada ejecución.
 _SIN_VENTANA = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -137,6 +140,41 @@ def volcar(destino: Path, timeout: int = 600, base_datos: Optional[str] = None) 
         raise RuntimeError("pg_dump no generó ningún archivo de respaldo.")
 
     return destino.stat().st_size
+
+
+def cerrar_conexiones_ajenas(base_datos: Optional[str] = None) -> int:
+    """Cierra las demás conexiones abiertas a la base de datos.
+
+    pg_dump genera DROP TABLE, que necesita un bloqueo exclusivo: si la
+    aplicación u otra herramienta tienen una transacción abierta, la
+    restauración se quedaría esperando hasta el timeout. Devuelve cuántas
+    sesiones se cerraron.
+    """
+    binario = requerido("psql")
+    consulta = (
+        "SELECT count(*) FROM (SELECT pg_terminate_backend(pid) AS ok "
+        "FROM pg_stat_activity "
+        "WHERE datname = current_database() AND pid <> pg_backend_pid()) x"
+    )
+    cmd = [
+        binario,
+        *_argumentos_conexion(base_datos),
+        "-X",
+        "-q",
+        "-A",
+        "-t",
+        "-c",
+        consulta,
+    ]
+    proceso = _ejecutar(cmd, _entorno(), 30)
+    if proceso.returncode != 0:
+        detalle = (proceso.stderr or proceso.stdout or "").strip()
+        logger.warning("No se pudieron cerrar conexiones ajenas: %s", detalle)
+        return 0
+    try:
+        return int((proceso.stdout or "0").strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        return 0
 
 
 def restaurar(
