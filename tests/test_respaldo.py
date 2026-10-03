@@ -249,38 +249,54 @@ def test_generar_respaldo_completo(client, admin_headers):
     if estado["job_en_ejecucion"]:
         pytest.skip("ya hay un trabajo en curso")
 
-    antes = client.get("/respaldos/", headers=admin_headers).json()["total"]
-
-    response = client.post(
-        "/respaldos/",
-        headers=admin_headers,
-        json={"observacion": "prueba automatizada"},
+    # Se aísla la prueba de la política de retención: con un máximo bajo,
+    # _podar_por_maximo retira respaldos al terminar la creación y el
+    # conteo antes/después deja de ser estable.
+    config_original = estado["config"]
+    assert (
+        client.put(
+            "/respaldos/config",
+            headers=admin_headers,
+            json=dict(config_original, maximo_respaldos=200),
+        ).status_code
+        == 200
     )
-    assert response.status_code == 202
 
-    job_id = response.json()["job_id"]
-    job = response.json()
-    for _ in range(180):
-        job = client.get(f"/respaldos/jobs/{job_id}", headers=admin_headers).json()
-        if job["estado"] != "en_proceso":
-            break
-        time.sleep(1)
+    try:
+        antes = client.get("/respaldos/", headers=admin_headers).json()["total"]
 
-    assert job["estado"] == "completado", job.get("mensaje")
-    assert len(job["pasos"]) >= 5
-    assert all(p["estado"] == "completado" for p in job["pasos"])
-    assert job["respaldo_id"]
+        response = client.post(
+            "/respaldos/",
+            headers=admin_headers,
+            json={"observacion": "prueba automatizada"},
+        )
+        assert response.status_code == 202
 
-    despues = client.get("/respaldos/", headers=admin_headers).json()
-    assert despues["total"] >= antes
-    nuevo = next(r for r in despues["items"] if r["id"] == job["respaldo_id"])
-    assert nuevo["estado"] == "completado"
-    assert nuevo["tipo"] == "manual"
-    assert nuevo["tamano_bytes"] > 0
-    assert nuevo["sha256"]
-    assert nuevo["drive_file_url"]
+        job_id = response.json()["job_id"]
+        job = response.json()
+        for _ in range(180):
+            job = client.get(f"/respaldos/jobs/{job_id}", headers=admin_headers).json()
+            if job["estado"] != "en_proceso":
+                break
+            time.sleep(1)
 
-    # el estado refleja el nuevo respaldo
-    estado = client.get("/respaldos/estado", headers=admin_headers).json()
-    assert estado["ultimo_respaldo"]["id"] == job["respaldo_id"]
-    assert estado["total_respaldos"] >= antes
+        assert job["estado"] == "completado", job.get("mensaje")
+        assert len(job["pasos"]) >= 5
+        assert all(p["estado"] == "completado" for p in job["pasos"])
+        assert job["respaldo_id"]
+
+        despues = client.get("/respaldos/", headers=admin_headers).json()
+        assert despues["total"] >= antes
+        nuevo = next(r for r in despues["items"] if r["id"] == job["respaldo_id"])
+        assert nuevo["estado"] == "completado"
+        assert nuevo["tipo"] == "manual"
+        assert nuevo["tamano_bytes"] > 0
+        assert nuevo["sha256"]
+        assert nuevo["drive_file_url"]
+
+        # el estado refleja el nuevo respaldo
+        estado = client.get("/respaldos/estado", headers=admin_headers).json()
+        assert estado["ultimo_respaldo"]["id"] == job["respaldo_id"]
+        assert estado["total_respaldos"] >= antes
+    finally:
+        client.put("/respaldos/config", headers=admin_headers, json=config_original)
