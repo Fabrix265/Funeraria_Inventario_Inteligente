@@ -78,9 +78,12 @@ class RespaldoEstadoLeer(BaseModel):
     vigencia: Vigencia
     fecha_siguiente_recomendada: Optional[datetime] = None
     config: RespaldoConfigLeer
-    carpeta_servicios: Optional[str] = None
-    carpeta_base_datos: Optional[str] = None
-    carpeta_archivos: Optional[str] = None
+    carpeta_servicios_id: Optional[str] = None
+    carpeta_base_datos_id: Optional[str] = None
+    carpeta_archivos_id: Optional[str] = None
+    carpeta_raiz_id: Optional[str] = None
+    job_en_ejecucion: Optional[RespaldoJobLeer] = None
+    maximo_alcanzado: bool = False
 
 
 class TokenRestauracionLeer(BaseModel):

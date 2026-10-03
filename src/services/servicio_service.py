@@ -12,8 +12,8 @@ from src.models.ataud import Ataud
 from src.models.capilla import Capilla
 from src.models.vehiculo import Vehiculo
 from src.schemas.servicio import ServicioCrear
-from src.services.drive_service import GoogleDriveService
-from src.services.archivo_service import _obtener_carpeta_servicio
+from src.services.drive_service import GoogleDriveService, CARPETA_SERVICIOS
+from src.services.archivo_service import obtener_carpeta_servicio
 
 logger = logging.getLogger(__name__)
 
@@ -278,7 +278,8 @@ def eliminar_servicio(session: Session, servicio_id: int):
         session.delete(archivo)
 
     try:
-        drive.eliminar_carpeta(drive.FOLDER_ID, _obtener_carpeta_servicio(servicio))
+        carpeta_servicios = drive.obtener_o_crear_carpeta(CARPETA_SERVICIOS, drive.FOLDER_ID)
+        drive.eliminar_carpeta(carpeta_servicios, obtener_carpeta_servicio(servicio))
     except Exception as exc:
         logger.warning("No se pudo eliminar la carpeta de Drive del servicio %s: %s", servicio_id, exc)
 
