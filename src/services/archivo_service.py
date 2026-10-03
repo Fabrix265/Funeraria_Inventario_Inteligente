@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from src.models.servicio import Servicio
 from src.models.fallecido import Fallecido
 from src.models.servicio_archivo import ServicioArchivo, TipoArchivo
-from src.services.drive_service import GoogleDriveService
+from src.services.drive_service import GoogleDriveService, CARPETA_SERVICIOS
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,9 @@ def subir_archivo(
     drive = GoogleDriveService(db)
     carpeta_nombre = _obtener_carpeta_servicio(servicio)
     nombre_archivo = _generar_nombre_archivo(tipo, servicio, filename)
-    resultado = drive.subir_archivo(file_bytes, nombre_archivo, carpeta_nombre)
+    resultado = drive.subir_archivo(
+        file_bytes, nombre_archivo, f"{CARPETA_SERVICIOS}/{carpeta_nombre}"
+    )
 
     if not resultado:
         raise HTTPException(
