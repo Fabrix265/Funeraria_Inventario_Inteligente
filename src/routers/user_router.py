@@ -3,9 +3,11 @@ from typing import List, Optional
 from src.deps.db_session import SessionDep
 from src.core.security import decode_token, CheckerPermisos
 from src.services.user_service import UserService
-from src.schemas.user import UserLeer, UserCrear, UserActualizarSe, RoleLeer, UserActualizarAdmin
+from src.schemas.user import UserLeer, UserCrear, UserActualizarSe, RoleLeer, UserActualizarAdmin, CambioEmailSolicitar, CambioEmailConfirmar
 from src.schemas.estado import EstadoUpdate
 from src.services import bitacora_service
+from src.deps.limiter import limiter
+from src.services.email_change_service import EmailChangeService
 
 user_router = APIRouter()
 
@@ -66,17 +68,76 @@ def editar_mi_perfil(
     user_in: UserActualizarSe, db: SessionDep, token: dict = Depends(decode_token),
 ):
     user_id = int(token.get("sub"))
+    antes = UserService.snapshot(UserService.obtener_usuario(db, user_id))
     resultado = UserService.actualizar_perfil(db, user_id, user_in)
+    detalle = UserService.describir_cambios(antes, UserService.snapshot(resultado))
     bitacora_service.registrar(
         db,
         usuario_id=user_id,
         usuario_nombre=token.get("username", ""),
         accion="actualizar",
         modulo="usuarios",
-        detalle="Perfil actualizado",
+        detalle=f"Perfil actualizado ({detalle})",
         ip_address=request.client.host if request.client else None,
     )
     return resultado
+
+@limiter.limit("5/10minutes")
+@user_router.post("/me/email-change")
+def solicitar_cambio_email(
+    request: Request,
+    datos: CambioEmailSolicitar, db: SessionDep, token: dict = Depends(decode_token),
+):
+    user_id = int(token.get("sub"))
+    EmailChangeService.solicitar(db, user_id, datos.email_nuevo, datos.password_actual)
+    bitacora_service.registrar(
+        db,
+        usuario_id=user_id,
+        usuario_nombre=token.get("username", ""),
+        accion="email_cambio_solicitado",
+        modulo="usuarios",
+        detalle=f"Código de confirmación enviado para el correo {datos.email_nuevo.lower()}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return {"message": "Si los datos son correctos, recibirás un código en el nuevo correo."}
+
+@limiter.limit("10/10minutes")
+@user_router.post("/me/email-change/confirm", response_model=UserLeer)
+def confirmar_cambio_email(
+    request: Request,
+    datos: CambioEmailConfirmar, db: SessionDep, token: dict = Depends(decode_token),
+):
+    user_id = int(token.get("sub"))
+    usuario, email_anterior = EmailChangeService.confirmar(
+        db, user_id, datos.email_nuevo, datos.codigo
+    )
+    bitacora_service.registrar(
+        db,
+        usuario_id=user_id,
+        usuario_nombre=token.get("username", ""),
+        accion="email_cambio_confirmado",
+        modulo="usuarios",
+        detalle=f"Correo cambiado: {email_anterior} → {usuario.email}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return usuario
+
+@user_router.delete("/me/email-change")
+def cancelar_cambio_email(
+    request: Request, db: SessionDep, token: dict = Depends(decode_token),
+):
+    user_id = int(token.get("sub"))
+    EmailChangeService.cancelar(db, user_id)
+    bitacora_service.registrar(
+        db,
+        usuario_id=user_id,
+        usuario_nombre=token.get("username", ""),
+        accion="email_cambio_cancelado",
+        modulo="usuarios",
+        detalle="Cambio de correo pendiente cancelado",
+        ip_address=request.client.host if request.client else None,
+    )
+    return {"message": "Cambio de correo cancelado"}
 
 @user_router.put("/{user_id}", response_model=UserLeer, dependencies=[Depends(CheckerPermisos("usuarios:crear"))])
 def actualizar_usuario_como_administrador(
@@ -84,14 +145,16 @@ def actualizar_usuario_como_administrador(
     user_id: int, user_in: UserActualizarAdmin, db: SessionDep,
     token: dict = Depends(CheckerPermisos("usuarios:crear")),
 ):
+    antes = UserService.snapshot(UserService.obtener_usuario(db, user_id))
     resultado = UserService.actualizar_usuario_por_admin(db, user_id, user_in)
+    detalle = UserService.describir_cambios(antes, UserService.snapshot(resultado))
     bitacora_service.registrar(
         db,
         usuario_id=int(token.get("sub")),
         usuario_nombre=token.get("username", ""),
         accion="actualizar",
         modulo="usuarios",
-        detalle=f"Usuario #{user_id} actualizado por administrador",
+        detalle=f"Usuario #{user_id} actualizado por administrador ({detalle})",
         ip_address=request.client.host if request.client else None,
     )
     return resultado

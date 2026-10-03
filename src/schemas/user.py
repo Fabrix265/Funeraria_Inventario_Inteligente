@@ -28,8 +28,15 @@ class UserLeer(BaseModel):
 
 class UserActualizarSe(BaseModel):
     username: Optional[str] = Field(default=None, min_length=3, max_length=30)
-    email: Optional[EmailStr] = None
     password: Optional[str] = Field(default=None, min_length=6)
+
+class CambioEmailSolicitar(BaseModel):
+    email_nuevo: EmailStr
+    password_actual: str = Field(min_length=1, max_length=128)
+
+class CambioEmailConfirmar(BaseModel):
+    email_nuevo: EmailStr
+    codigo: str = Field(pattern=r"^\d{6}$")
 
 class RoleCrear(BaseModel):
     nombre: str = Field(min_length=3, max_length=50)

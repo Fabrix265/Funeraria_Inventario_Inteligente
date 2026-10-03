@@ -35,5 +35,6 @@ class User(SQLModel, table=True):
     email: str = Field(nullable=False, unique=True, index=True, max_length=255)
     password: str = Field(nullable=False)
     activo: bool = Field(default=True, index=True)
+    token_version: int = Field(default=0)
     roles: List[Role] = Relationship(back_populates="usuarios", link_model=UserRoleLink)
     servicios: List["Servicio"] = Relationship(back_populates="usuario")
