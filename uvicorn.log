@@ -1,0 +1,22 @@
+ SEEDING: Usuario 'fabAdmin' ya existe. Sin cambios.
+ SEEDING: Ya existe un vehículo de cada TipoVehiculo. Sin cambios.
+INFO:     127.0.0.1:50080 - "OPTIONS /respaldos/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63999 - "OPTIONS /respaldos/estado HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63999 - "GET /respaldos/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54369 - "OPTIONS /respaldos/resincronizar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50080 - "GET /respaldos/estado HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54369 - "POST /respaldos/resincronizar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54369 - "GET /respaldos/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55557 - "OPTIONS /coffins?activo=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55557 - "GET /coffins?activo=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:55557 - "OPTIONS /coffins/?activo=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55557 - "GET /coffins/?activo=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55557 - "OPTIONS /vehicles HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55557 - "GET /vehicles HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:55557 - "OPTIONS /vehicles/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55557 - "GET /vehicles/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55557 - "OPTIONS /services?offset=0&limit=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55557 - "GET /services?offset=0&limit=10 HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:55557 - "OPTIONS /services/?offset=0&limit=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55557 - "GET /services/?offset=0&limit=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54369 - "GET /respaldos/estado HTTP/1.1" 200 OK
