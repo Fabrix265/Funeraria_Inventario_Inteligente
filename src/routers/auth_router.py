@@ -25,7 +25,7 @@ def login(
         )
         bitacora_service.registrar(
             db,
-            usuario_id=resultado["user"].get("user_id"),
+            usuario_id=resultado["user"]["id"],
             usuario_nombre=form_data.username,
             accion="login_exitoso",
             modulo="auth",
