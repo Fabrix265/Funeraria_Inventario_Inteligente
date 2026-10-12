@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 
 class RoleLeer(BaseModel):
@@ -10,13 +10,16 @@ class RoleLeer(BaseModel):
 
 class UserBase(BaseModel):
     username: str = Field(min_length=3, max_length=30)
+    email: EmailStr
 
 class UserCrear(UserBase):
     password: str = Field(min_length=6)
     role_id: int
 
-class UserLeer(UserBase):
+class UserLeer(BaseModel):
     id: int
+    username: str
+    email: EmailStr
     activo: bool
     roles: List[RoleLeer] = []
 
@@ -24,8 +27,16 @@ class UserLeer(UserBase):
         from_attributes = True
 
 class UserActualizarSe(BaseModel):
-    username: str = Field(min_length=3, max_length=30)
-    password: str = Field(min_length=6)
+    username: Optional[str] = Field(default=None, min_length=3, max_length=30)
+    password: Optional[str] = Field(default=None, min_length=6)
+
+class CambioEmailSolicitar(BaseModel):
+    email_nuevo: EmailStr
+    password_actual: str = Field(min_length=1, max_length=128)
+
+class CambioEmailConfirmar(BaseModel):
+    email_nuevo: EmailStr
+    codigo: str = Field(pattern=r"^\d{6}$")
 
 class RoleCrear(BaseModel):
     nombre: str = Field(min_length=3, max_length=50)
@@ -49,5 +60,10 @@ class RoleDetalleLeer(BaseModel):
 
 class UserActualizarAdmin(BaseModel):
     username: str = Field(min_length=3, max_length=30)
+    email: EmailStr
     role_id: int
     password: Optional[str] = Field(default=None, min_length=6)
+
+class RoleModificar(BaseModel):
+    nombre: str = Field(min_length=3, max_length=50)
+    permisos_ids: List[int] = []

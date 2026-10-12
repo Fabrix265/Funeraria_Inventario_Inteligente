@@ -8,6 +8,7 @@ def ejecutar_seeding(db: Session):
     permisos_sistema = [
         {"nombre": "usuarios:crear",   "descripcion": "Crear y editar usuarios y roles"},
         {"nombre": "usuarios:listar",  "descripcion": "Ver la lista de usuarios y roles"},
+        {"nombre": "usuarios:actualizar", "descripcion": "Editar roles y sus permisos"},
         {"nombre": "usuarios:eliminar","descripcion": "Eliminar usuarios del sistema"},
 
         {"nombre": "ataudes:leer",           "descripcion": "Ver el inventario de ataúdes"},
@@ -39,6 +40,18 @@ def ejecutar_seeding(db: Session):
         {"nombre": "contratantes:crear",     "descripcion": "Crear registros de contratantes"},
         {"nombre": "contratantes:actualizar","descripcion": "Editar registros de contratantes"},
         {"nombre": "contratantes:eliminar",  "descripcion": "Eliminar registros de contratantes"},
+
+        {"nombre": "bitacora:listar", "descripcion": "Ver el historial de acciones del sistema"},
+
+        {"nombre": "archivos:ver",     "descripcion": "Ver y descargar archivos de servicios"},
+        {"nombre": "archivos:subir",    "descripcion": "Subir archivos a servicios"},
+        {"nombre": "archivos:editar",   "descripcion": "Reemplazar archivos de servicios"},
+        {"nombre": "archivos:eliminar", "descripcion": "Eliminar archivos de servicios"},
+
+        {"nombre": "respaldos:listar",    "descripcion": "Ver el historial de respaldos del sistema"},
+        {"nombre": "respaldos:crear",     "descripcion": "Generar respaldos de la base de datos y archivos"},
+        {"nombre": "respaldos:restaurar", "descripcion": "Restaurar la base de datos y los archivos desde un respaldo"},
+        {"nombre": "respaldos:eliminar",  "descripcion": "Eliminar respaldos antiguos de Google Drive"},
     ]
 
     permisos_db = []
@@ -76,6 +89,8 @@ def ejecutar_seeding(db: Session):
         "contratantes:leer",
         "contratantes:crear",
         "contratantes:actualizar",
+        "archivos:ver",
+        "archivos:subir",
     ]
     permisos_trabajador = [
         db.exec(select(Permission).where(Permission.nombre == n)).first()
@@ -95,10 +110,13 @@ def ejecutar_seeding(db: Session):
     import os
     admin_username = os.getenv("ADMIN_USER", "fabAdmin")
     admin_password = os.getenv("ADMIN_PASSWORD", "admin123456")
+    admin_email = os.getenv("ADMIN_EMAIL", "")
 
-    if not db.exec(select(User).where(User.username == admin_username)).first():
+    admin_existente = db.exec(select(User).where(User.username == admin_username)).first()
+    if not admin_existente:
         nuevo_admin = User(
             username=admin_username,
+            email=admin_email,
             password=pwd_context.hash(admin_password)
         )
         nuevo_admin.roles.append(rol_admin)
@@ -106,7 +124,29 @@ def ejecutar_seeding(db: Session):
         db.commit()
         print(f" SEEDING: Usuario '{admin_username}' creado con rol Administrador.")
     else:
+        if admin_email and not admin_existente.email:
+            admin_existente.email = admin_email
+            db.add(admin_existente)
+            db.commit()
+            print(f" SEEDING: Email asignado al usuario '{admin_username}'.")
         print(f" SEEDING: Usuario '{admin_username}' ya existe. Sin cambios.")
+
+    # Vehículos por defecto: idempotente POR TIPO. En CADA arranque se garantiza que
+    # exista un vehículo de cada TipoVehiculo, creando únicamente los que falten.
+    # No borra ni duplica los vehículos personalizados que ya hayas creado. Si mañana
+    # agregas un tipo nuevo al enum, se crea solo al levantar el sistema.
+    from src.models.vehiculo import Vehiculo, TipoVehiculo
+
+    creados = 0
+    for tipo in TipoVehiculo:
+        if not db.exec(select(Vehiculo).where(Vehiculo.tipo == tipo).limit(1)).first():
+            db.add(Vehiculo(tipo=tipo, activo=True))
+            creados += 1
+    if creados:
+        db.commit()
+        print(f" SEEDING: Vehículos por defecto completados ({creados} tipo(s) que faltaban).")
+    else:
+        print(" SEEDING: Ya existe un vehículo de cada TipoVehiculo. Sin cambios.")
 
 ###
 #Para push

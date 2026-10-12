@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status, UploadFile, File
 from typing import List, Optional
 
 from src.deps.db_session import SessionDep
@@ -7,6 +7,7 @@ from src.services.vehiculo_service import VehiculoService
 from src.schemas.vehiculo import VehiculoLeer, VehiculoCrear
 from src.schemas.estado import EstadoUpdate
 from src.models.vehiculo import TipoVehiculo
+from src.services import bitacora_service
 
 vehiculo_router = APIRouter()
 
@@ -20,26 +21,118 @@ def listar_vehiculos(
 
 @vehiculo_router.post("/", response_model=VehiculoLeer, status_code=status.HTTP_201_CREATED, dependencies=[Depends(CheckerPermisos("vehiculos:crear"))])
 def crear_vehiculo(
+    request: Request,
     vehiculo_in: VehiculoCrear,
     db: SessionDep,
+    token: dict = Depends(CheckerPermisos("vehiculos:crear")),
 ):
-    return VehiculoService.crear(db, vehiculo_in)
+    resultado = VehiculoService.crear(db, vehiculo_in)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="crear",
+        modulo="vehiculos",
+        detalle=f"Vehiculo tipo '{resultado.tipo.value}' creado",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
 
 @vehiculo_router.put("/{vehiculo_id}", response_model=VehiculoLeer, dependencies=[Depends(CheckerPermisos("vehiculos:actualizar"))])
 def actualizar_vehiculo(
+    request: Request,
     vehiculo_id: int,
     vehiculo_in: VehiculoCrear,
     db: SessionDep,
+    token: dict = Depends(CheckerPermisos("vehiculos:actualizar")),
 ):
-    return VehiculoService.actualizar(db, vehiculo_id, vehiculo_in)
+    resultado = VehiculoService.actualizar(db, vehiculo_id, vehiculo_in)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="actualizar",
+        modulo="vehiculos",
+        detalle=f"Vehiculo #{vehiculo_id} actualizado",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
 
 @vehiculo_router.delete("/{vehiculo_id}", dependencies=[Depends(CheckerPermisos("vehiculos:eliminar"))])
 def eliminar_vehiculo(
+    request: Request,
     vehiculo_id: int,
     db: SessionDep,
+    token: dict = Depends(CheckerPermisos("vehiculos:eliminar")),
 ):
-    return VehiculoService.eliminar(db, vehiculo_id)
+    resultado = VehiculoService.eliminar(db, vehiculo_id)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="eliminar",
+        modulo="vehiculos",
+        detalle=f"Vehiculo #{vehiculo_id} eliminado",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
 
 @vehiculo_router.patch("/{vehiculo_id}/status", response_model=VehiculoLeer, dependencies=[Depends(CheckerPermisos("vehiculos:actualizar"))])
-def cambiar_estado_vehiculo(vehiculo_id: int, datos: EstadoUpdate, db: SessionDep):
-    return VehiculoService.cambiar_estado(db, vehiculo_id, datos.activo)
+def cambiar_estado_vehiculo(
+    request: Request,
+    vehiculo_id: int, datos: EstadoUpdate, db: SessionDep,
+    token: dict = Depends(CheckerPermisos("vehiculos:actualizar")),
+):
+    resultado = VehiculoService.cambiar_estado(db, vehiculo_id, datos.activo)
+    estado = "activado" if datos.activo else "desactivado"
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="cambiar_estado",
+        modulo="vehiculos",
+        detalle=f"Vehiculo #{vehiculo_id} {estado}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
+
+@vehiculo_router.post("/{vehiculo_id}/imagenes", response_model=VehiculoLeer, dependencies=[Depends(CheckerPermisos("vehiculos:actualizar"))])
+def agregar_imagen_vehiculo(
+    request: Request,
+    vehiculo_id: int,
+    imagen: UploadFile = File(...),
+    db: SessionDep = None,
+    token: dict = Depends(CheckerPermisos("vehiculos:actualizar")),
+):
+    resultado = VehiculoService.agregar_imagen(db, vehiculo_id, imagen)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="agregar_imagen",
+        modulo="vehiculos",
+        detalle=f"Imagen agregada a vehículo #{vehiculo_id}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
+
+
+@vehiculo_router.delete("/{vehiculo_id}/imagenes/{imagen_id}", response_model=VehiculoLeer, dependencies=[Depends(CheckerPermisos("vehiculos:actualizar"))])
+def eliminar_imagen_vehiculo(
+    request: Request,
+    vehiculo_id: int,
+    imagen_id: int,
+    db: SessionDep,
+    token: dict = Depends(CheckerPermisos("vehiculos:actualizar")),
+):
+    resultado = VehiculoService.eliminar_imagen(db, vehiculo_id, imagen_id)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="eliminar_imagen",
+        modulo="vehiculos",
+        detalle=f"Imagen #{imagen_id} eliminada de vehículo #{vehiculo_id}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado

@@ -1,0 +1,448 @@
+import os
+import io
+import logging
+from datetime import datetime
+from typing import Optional
+from urllib.parse import urlencode
+
+from sqlmodel import Session, select
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
+
+from src.models.oauth_token import OAuthToken
+
+logger = logging.getLogger(__name__)
+
+
+class _BytesIODownloader:
+    """Helper to download Google Drive files into a BytesIO buffer."""
+
+    def __init__(self, request, buffer):
+        self._request = request
+        self._buffer = buffer
+        self._done = False
+
+    def next_chunk(self):
+        while not self._done:
+            status, done = self._request.next_chunk()
+            if status:
+                self._buffer.write(status)
+            self._done = done
+
+
+SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+
+# Estructura de carpetas dentro de GOOGLE_DRIVE_FOLDER_ID
+CARPETA_SERVICIOS = "servicios"
+CARPETA_BACKUPS = "backups"
+CARPETA_BASE_DATOS = "backups/base_datos"
+CARPETA_SNAPSHOTS = "backups/archivos"
+
+
+class GoogleDriveService:
+    def __init__(self, db: Session):
+        self.db = db
+        self.CLIENT_ID = os.getenv("GOOGLE_DRIVE_CLIENT_ID", "")
+        self.CLIENT_SECRET = os.getenv("GOOGLE_DRIVE_CLIENT_SECRET", "")
+        self.REDIRECT_URI = os.getenv("GOOGLE_DRIVE_REDIRECT_URI", "http://localhost:8000/drive/callback")
+        self.FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
+
+    def obtener_url_autorizacion(self) -> str:
+        params = {
+            "client_id": self.CLIENT_ID,
+            "redirect_uri": self.REDIRECT_URI,
+            "response_type": "code",
+            "scope": " ".join(SCOPES),
+            "access_type": "offline",
+            "prompt": "consent",
+        }
+        return "https://accounts.google.com/o/oauth2/auth?" + urlencode(params)
+
+    def intercambiar_codigo(self, code: str) -> bool:
+        import httpx
+
+        response = httpx.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": self.CLIENT_ID,
+                "client_secret": self.CLIENT_SECRET,
+                "redirect_uri": self.REDIRECT_URI,
+                "grant_type": "authorization_code",
+            },
+        )
+        if response.status_code != 200:
+            logger.error("Error intercambiando codigo de Google: %s - %s", response.status_code, response.text)
+            return False
+
+        tokens = response.json()
+        expiry = None
+        if "expires_in" in tokens:
+            expiry = datetime.utcnow().timestamp() + tokens["expires_in"]
+            expiry = datetime.utcfromtimestamp(expiry)
+
+        token_existente = self.db.exec(
+            select(OAuthToken).where(OAuthToken.proveedor == "google_drive")
+        ).first()
+
+        if token_existente:
+            token_existente.access_token = tokens["access_token"]
+            token_existente.refresh_token = tokens.get("refresh_token", token_existente.refresh_token)
+            token_existente.token_expiry = expiry
+            self.db.add(token_existente)
+        else:
+            nuevo_token = OAuthToken(
+                proveedor="google_drive",
+                access_token=tokens["access_token"],
+                refresh_token=tokens.get("refresh_token", ""),
+                token_expiry=expiry,
+            )
+            self.db.add(nuevo_token)
+
+        self.db.commit()
+        return True
+
+    def _obtener_credenciales(self) -> Optional[Credentials]:
+        token = self.db.exec(
+            select(OAuthToken).where(OAuthToken.proveedor == "google_drive")
+        ).first()
+
+        if not token:
+            return None
+
+        creds = Credentials(
+            token=token.access_token,
+            refresh_token=token.refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=self.CLIENT_ID,
+            client_secret=self.CLIENT_SECRET,
+            scopes=SCOPES,
+            expiry=token.token_expiry,
+        )
+
+        if creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+            except Exception as e:
+                logger.warning("No se pudo renovar el token de Google Drive: %s", str(e))
+                return None
+            token.access_token = creds.token
+            if creds.expiry:
+                token.token_expiry = creds.expiry
+            self.db.add(token)
+            self.db.commit()
+
+        return creds
+
+    def _servicio(self):
+        creds = self._obtener_credenciales()
+        if not creds:
+            raise RuntimeError("Google Drive no está conectado. Autoriza la integración desde tu perfil.")
+        return build("drive", "v3", credentials=creds)
+
+    @staticmethod
+    def _escapar(nombre: str) -> str:
+        return nombre.replace("\\", "\\\\").replace("'", "\\'")
+
+    def _asegurar_carpeta(self, service, parent_id: str, nombre_carpeta: str) -> str:
+        query = (
+            f"name='{self._escapar(nombre_carpeta)}' and "
+            f"'{parent_id}' in parents and "
+            f"mimeType='application/vnd.google-apps.folder' and "
+            f"trashed=false"
+        )
+        results = service.files().list(q=query, fields="files(id)").execute()
+        items = results.get("files", [])
+        if items:
+            return items[0]["id"]
+
+        file_metadata = {
+            "name": nombre_carpeta,
+            "mimeType": "application/vnd.google-apps.folder",
+            "parents": [parent_id],
+        }
+        file = service.files().create(body=file_metadata, fields="id").execute()
+        return file["id"]
+
+    def subir_archivo(
+        self,
+        file_bytes: bytes,
+        filename: str,
+        carpeta: str = "servicios",
+    ) -> Optional[dict]:
+        creds = self._obtener_credenciales()
+        if not creds:
+            logger.error("No hay credenciales de Google Drive configuradas")
+            return None
+
+        try:
+            service = build("drive", "v3", credentials=creds)
+
+            parent_id = self.FOLDER_ID
+            for parte in carpeta.split("/"):
+                if parte:
+                    parent_id = self._asegurar_carpeta(service, parent_id, parte)
+
+            ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+            mime_map = {
+                "pdf": "application/pdf",
+                "png": "image/png",
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+                "doc": "application/msword",
+                "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            }
+            mime_type = mime_map.get(ext, "application/octet-stream")
+
+            media = MediaIoBaseUpload(
+                io.BytesIO(file_bytes),
+                mimetype=mime_type,
+                resumable=True,
+            )
+
+            file_metadata = {
+                "name": filename,
+                "parents": [parent_id],
+            }
+
+            file = service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields="id",
+            ).execute()
+
+            file_id = file["id"]
+            url = f"https://drive.google.com/uc?id={file_id}"
+
+            return {
+                "file_id": file_id,
+                "url": url,
+                "filename": filename,
+            }
+        except Exception as e:
+            logger.error("Error subiendo archivo a Google Drive: %s", str(e))
+            return None
+
+    def obtener_url_archivo(self, file_id: str) -> str:
+        return f"https://drive.google.com/uc?id={file_id}"
+
+    def descargar_archivo(self, file_id: str) -> Optional[bytes]:
+        creds = self._obtener_credenciales()
+        if not creds:
+            return None
+        try:
+            service = build("drive", "v3", credentials=creds)
+            request = service.files().get_media(fileId=file_id)
+            buffer = io.BytesIO()
+            downloader = MediaIoBaseDownload(buffer, request)
+            done = False
+            while not done:
+                status, done = downloader.next_chunk()
+            return buffer.getvalue()
+        except Exception as e:
+            logger.error("Error descargando archivo de Drive: %s", str(e))
+            return None
+
+    def eliminar_archivo(self, file_id: str) -> bool:
+        creds = self._obtener_credenciales()
+        if not creds:
+            return False
+        try:
+            service = build("drive", "v3", credentials=creds)
+            service.files().delete(fileId=file_id).execute()
+            return True
+        except Exception as e:
+            logger.error("Error eliminando archivo de Drive: %s", str(e))
+            return False
+
+    def eliminar_carpeta(self, parent_id: str, nombre_carpeta: str) -> bool:
+        creds = self._obtener_credenciales()
+        if not creds:
+            return False
+        try:
+            service = build("drive", "v3", credentials=creds)
+            query = (
+                f"name='{nombre_carpeta}' and "
+                f"'{parent_id}' in parents and "
+                f"mimeType='application/vnd.google-apps.folder' and "
+                f"trashed=false"
+            )
+            results = service.files().list(q=query, fields="files(id)").execute()
+            items = results.get("files", [])
+            if not items:
+                return False
+
+            carpeta_id = items[0]["id"]
+            children = service.files().list(
+                q=f"'{carpeta_id}' in parents and trashed=false",
+                fields="files(id)",
+            ).execute()
+            if children.get("files"):
+                return False
+
+            service.files().delete(fileId=carpeta_id).execute()
+            return True
+        except Exception as e:
+            logger.error("Error eliminando carpeta de Drive '%s': %s", nombre_carpeta, str(e))
+            return False
+
+    def reemplazar_archivo(
+        self,
+        file_id: str,
+        file_bytes: bytes,
+        filename: str,
+    ) -> Optional[dict]:
+        creds = self._obtener_credenciales()
+        if not creds:
+            return None
+        try:
+            service = build("drive", "v3", credentials=creds)
+
+            ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+            mime_map = {
+                "pdf": "application/pdf",
+                "png": "image/png",
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+            }
+            mime_type = mime_map.get(ext, "application/octet-stream")
+
+            media = MediaIoBaseUpload(
+                io.BytesIO(file_bytes),
+                mimetype=mime_type,
+                resumable=True,
+            )
+
+            service.files().update(
+                fileId=file_id,
+                body={"name": filename},
+                media_body=media,
+            ).execute()
+
+            return {
+                "file_id": file_id,
+                "url": self.obtener_url_archivo(file_id),
+                "filename": filename,
+            }
+        except Exception as e:
+            logger.error("Error reemplazando archivo en Drive: %s", str(e))
+            return None
+
+    def verificar_estado(self) -> dict:
+        token = self.db.exec(
+            select(OAuthToken).where(OAuthToken.proveedor == "google_drive")
+        ).first()
+
+        if not token:
+            return {"autorizado": False, "expira_en": None, "motivo": "no_autorizado"}
+
+        if token.refresh_token:
+            creds = self._obtener_credenciales()
+            if creds is None:
+                return {"autorizado": False, "expira_en": None, "motivo": "refresh_invalido"}
+            token = self.db.exec(
+                select(OAuthToken).where(OAuthToken.proveedor == "google_drive")
+            ).first()
+
+        expira_str = None
+        if token and token.token_expiry:
+            expira_str = token.token_expiry.isoformat()
+
+        return {"autorizado": True, "expira_en": expira_str, "motivo": None}
+
+    # ------------------------------------------------------------------
+    # Utilidades de respaldo
+    # ------------------------------------------------------------------
+
+    def obtener_o_crear_carpeta(self, nombre: str, parent_id: Optional[str] = None) -> str:
+        service = self._servicio()
+        padre = parent_id or self.FOLDER_ID
+        if not padre:
+            raise RuntimeError("No hay una carpeta raíz configurada (GOOGLE_DRIVE_FOLDER_ID).")
+        return self._asegurar_carpeta(service, padre, nombre)
+
+    def listar_contenido(self, carpeta_id: str, tipo: str = "todos") -> list:
+        """Lista de forma paginada lo que hay dentro de una carpeta.
+
+        tipo: "archivos", "carpetas" o "todos".
+        """
+        service = self._servicio()
+        condiciones = [f"'{carpeta_id}' in parents", "trashed=false"]
+        if tipo == "archivos":
+            condiciones.append("mimeType!='application/vnd.google-apps.folder'")
+        elif tipo == "carpetas":
+            condiciones.append("mimeType='application/vnd.google-apps.folder'")
+
+        resultado = []
+        token = None
+        while True:
+            params = {
+                "q": " and ".join(condiciones),
+                "fields": "nextPageToken, files(id, name, mimeType, size, modifiedTime)",
+                "pageSize": 1000,
+            }
+            if token:
+                params["pageToken"] = token
+            respuesta = service.files().list(**params).execute()
+            resultado.extend(respuesta.get("files", []))
+            token = respuesta.get("nextPageToken")
+            if not token:
+                break
+        return resultado
+
+    def copiar_archivo(
+        self, file_id: str, carpeta_destino_id: str, nombre_destino: Optional[str] = None
+    ) -> dict:
+        """Copia un archivo dentro de Drive sin descargarlo ni volverlo a subir."""
+        service = self._servicio()
+        cuerpo = {"parents": [carpeta_destino_id]}
+        if nombre_destino:
+            cuerpo["name"] = nombre_destino
+        try:
+            copia = service.files().copy(
+                fileId=file_id, body=cuerpo, fields="id, name, size"
+            ).execute()
+        except Exception as e:
+            logger.error("Error copiando el archivo %s en Drive: %s", file_id, str(e))
+            raise RuntimeError(f"No se pudo copiar el archivo en Google Drive: {e}")
+        return {
+            "file_id": copia.get("id"),
+            "filename": copia.get("name", ""),
+            "tamano": int(copia.get("size", 0) or 0),
+        }
+
+    def archivo_existe(self, file_id: str) -> bool:
+        if not file_id:
+            return False
+        service = self._servicio()
+        try:
+            service.files().get(fileId=file_id, fields="id").execute()
+            return True
+        except Exception as e:
+            status = getattr(getattr(e, "resp", None), "status", None)
+            if status in (404, 410):
+                return False
+            logger.warning("No se pudo verificar el archivo %s: %s", file_id, str(e))
+            raise
+
+    def eliminar_carpeta_recursiva(self, carpeta_id: str) -> bool:
+        """Borra una carpeta con todo su contenido, de abajo hacia arriba."""
+        service = self._servicio()
+        pendientes = [carpeta_id]
+        orden = []
+        while pendientes:
+            actual = pendientes.pop()
+            orden.append(actual)
+            for hijo in self.listar_contenido(actual, "carpetas"):
+                pendientes.append(hijo["id"])
+
+        for nodo in reversed(orden):
+            for archivo in self.listar_contenido(nodo, "archivos"):
+                service.files().delete(fileId=archivo["id"]).execute()
+            service.files().delete(fileId=nodo).execute()
+        return True
+
+    def obtener_url_directa(self, file_id: str) -> str:
+        return f"https://drive.google.com/uc?id={file_id}"

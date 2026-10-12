@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from typing import List, Optional
 
 from src.deps.db_session import SessionDep
@@ -7,6 +7,8 @@ from src.services.ataud_service import AtaudService
 from src.schemas.ataud import AtaudLeer, AtaudCrear, AtaudModificar
 from src.schemas.stock import StockUpdate
 from src.schemas.estado import EstadoUpdate
+from src.services import bitacora_service
+from fastapi import UploadFile, File
 
 ataud_router = APIRouter()
 
@@ -22,34 +24,139 @@ def listar_ataudes(
 
 @ataud_router.post("/", response_model=AtaudLeer, dependencies=[Depends(CheckerPermisos("ataudes:crear"))])
 def crear_ataud(
+    request: Request,
     ataud_in: AtaudCrear, 
-    db: SessionDep
+    db: SessionDep,
+    token: dict = Depends(CheckerPermisos("ataudes:crear")),
 ):
-    return AtaudService.crear(db, ataud_in)
+    resultado = AtaudService.crear(db, ataud_in)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="crear",
+        modulo="ataudes",
+        detalle=f"Ataud '{resultado.modelo} {resultado.color}' creado",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
 
 @ataud_router.patch("/{ataud_id}", response_model=AtaudLeer, dependencies=[Depends(CheckerPermisos("ataudes:actualizar"))])
 def modificar_ataud(
+    request: Request,
     ataud_id: int, 
     ataud_in: AtaudModificar, 
-    db: SessionDep
+    db: SessionDep,
+    token: dict = Depends(CheckerPermisos("ataudes:actualizar")),
 ):
-    return AtaudService.actualizar(db, ataud_id, ataud_in)
+    resultado = AtaudService.actualizar(db, ataud_id, ataud_in)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="actualizar",
+        modulo="ataudes",
+        detalle=f"Ataud #{ataud_id} actualizado",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
 
 @ataud_router.delete("/{ataud_id}", dependencies=[Depends(CheckerPermisos("ataudes:eliminar"))])
 def eliminar_ataud(
+    request: Request,
     ataud_id: int, 
-    db: SessionDep
+    db: SessionDep,
+    token: dict = Depends(CheckerPermisos("ataudes:eliminar")),
 ):
-    return AtaudService.eliminar(db, ataud_id)
+    resultado = AtaudService.eliminar(db, ataud_id)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="eliminar",
+        modulo="ataudes",
+        detalle=f"Ataud #{ataud_id} eliminado",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
 
 @ataud_router.patch("/{ataud_id}/stock", response_model=AtaudLeer, dependencies=[Depends(CheckerPermisos("ataudes:actualizar_stock"))])
 def actualizar_stock_ataud(
+    request: Request,
     ataud_id: int, 
     stock_in: StockUpdate, 
-    db: SessionDep
+    db: SessionDep,
+    token: dict = Depends(CheckerPermisos("ataudes:actualizar_stock")),
 ):
-    return AtaudService.actualizar_stock(db, ataud_id, stock_in.cantidad)
+    resultado = AtaudService.actualizar_stock(db, ataud_id, stock_in.cantidad)
+    signo = "+" if stock_in.cantidad > 0 else ""
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="actualizar_stock",
+        modulo="ataudes",
+        detalle=f"Stock de ataud #{ataud_id} cambiado en {signo}{stock_in.cantidad} (nuevo: {resultado.stock})",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
 
 @ataud_router.patch("/{ataud_id}/status", response_model=AtaudLeer, dependencies=[Depends(CheckerPermisos("ataudes:actualizar"))])
-def cambiar_estado_ataud(ataud_id: int, datos: EstadoUpdate, db: SessionDep):
-    return AtaudService.cambiar_estado(db, ataud_id, datos.activo)
+def cambiar_estado_ataud(
+    request: Request,
+    ataud_id: int, datos: EstadoUpdate, db: SessionDep,
+    token: dict = Depends(CheckerPermisos("ataudes:actualizar")),
+):
+    resultado = AtaudService.cambiar_estado(db, ataud_id, datos.activo)
+    estado = "activado" if datos.activo else "desactivado"
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="cambiar_estado",
+        modulo="ataudes",
+        detalle=f"Ataud #{ataud_id} {estado}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
+
+@ataud_router.post("/{ataud_id}/imagenes", response_model=AtaudLeer, dependencies=[Depends(CheckerPermisos("ataudes:actualizar"))])
+def agregar_imagen_ataud(
+    request: Request,
+    ataud_id: int,
+    imagen: UploadFile = File(...),
+    db: SessionDep = None,
+    token: dict = Depends(CheckerPermisos("ataudes:actualizar")),
+):
+    resultado = AtaudService.agregar_imagen(db, ataud_id, imagen)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="agregar_imagen",
+        modulo="ataudes",
+        detalle=f"Imagen agregada a ataúd #{ataud_id}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
+
+
+@ataud_router.delete("/{ataud_id}/imagenes/{imagen_id}", response_model=AtaudLeer, dependencies=[Depends(CheckerPermisos("ataudes:actualizar"))])
+def eliminar_imagen_ataud(
+    request: Request,
+    ataud_id: int,
+    imagen_id: int,
+    db: SessionDep,
+    token: dict = Depends(CheckerPermisos("ataudes:actualizar")),
+):
+    resultado = AtaudService.eliminar_imagen(db, ataud_id, imagen_id)
+    bitacora_service.registrar(
+        db,
+        usuario_id=int(token.get("sub")),
+        usuario_nombre=token.get("username", ""),
+        accion="eliminar_imagen",
+        modulo="ataudes",
+        detalle=f"Imagen #{imagen_id} eliminada de ataúd #{ataud_id}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultado
