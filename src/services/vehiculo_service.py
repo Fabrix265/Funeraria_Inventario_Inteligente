@@ -76,22 +76,23 @@ class VehiculoService:
         return db_vehiculo
 
     @staticmethod
-    def agregar_imagen(db: Session, vehiculo_id: int, archivo: UploadFile):
+    def agregar_imagenes(db: Session, vehiculo_id: int, archivos: list[UploadFile]):
         db_vehiculo = db.get(Vehiculo, vehiculo_id)
         if not db_vehiculo:
             raise HTTPException(status_code=404, detail="Vehículo no encontrado")
 
-        extension = archivo.filename.split(".")[-1] if "." in archivo.filename else "jpg"
-        ruta = f"{vehiculo_id}/{uuid.uuid4()}.{extension}"
+        for archivo in archivos:
+            extension = archivo.filename.split(".")[-1] if "." in archivo.filename else "jpg"
+            ruta = f"{vehiculo_id}/{uuid.uuid4()}.{extension}"
 
-        contenido = archivo.file.read()
-        supabase.storage.from_(BUCKET).upload(
-            ruta, contenido, {"content-type": archivo.content_type}
-        )
-        url_publica = supabase.storage.from_(BUCKET).get_public_url(ruta)
+            contenido = archivo.file.read()
+            supabase.storage.from_(BUCKET).upload(
+                ruta, contenido, {"content-type": archivo.content_type}
+            )
+            url_publica = supabase.storage.from_(BUCKET).get_public_url(ruta)
 
-        nueva_imagen = VehiculoImagen(vehiculo_id=vehiculo_id, url=url_publica, storage_path=ruta)
-        db.add(nueva_imagen)
+            db.add(VehiculoImagen(vehiculo_id=vehiculo_id, url=url_publica, storage_path=ruta))
+
         db.commit()
         db.refresh(db_vehiculo)
         return db_vehiculo

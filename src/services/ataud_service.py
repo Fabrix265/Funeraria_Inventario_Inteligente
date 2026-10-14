@@ -104,22 +104,23 @@ class AtaudService:
         return db_ataud
 
     @staticmethod
-    def agregar_imagen(db: Session, ataud_id: int, archivo: UploadFile):
+    def agregar_imagenes(db: Session, ataud_id: int, archivos: list[UploadFile]):
         db_ataud = db.get(Ataud, ataud_id)
         if not db_ataud:
             raise HTTPException(status_code=404, detail="Ataud no encontrado")
 
-        extension = archivo.filename.split(".")[-1] if "." in archivo.filename else "jpg"
-        ruta = f"{ataud_id}/{uuid.uuid4()}.{extension}"
+        for archivo in archivos:
+            extension = archivo.filename.split(".")[-1] if "." in archivo.filename else "jpg"
+            ruta = f"{ataud_id}/{uuid.uuid4()}.{extension}"
 
-        contenido = archivo.file.read()
-        supabase.storage.from_(BUCKET).upload(
-            ruta, contenido, {"content-type": archivo.content_type}
-        )
-        url_publica = supabase.storage.from_(BUCKET).get_public_url(ruta)
+            contenido = archivo.file.read()
+            supabase.storage.from_(BUCKET).upload(
+                ruta, contenido, {"content-type": archivo.content_type}
+            )
+            url_publica = supabase.storage.from_(BUCKET).get_public_url(ruta)
 
-        nueva_imagen = AtaudImagen(ataud_id=ataud_id, url=url_publica, storage_path=ruta)
-        db.add(nueva_imagen)
+            db.add(AtaudImagen(ataud_id=ataud_id, url=url_publica, storage_path=ruta))
+
         db.commit()
         db.refresh(db_ataud)
         return db_ataud

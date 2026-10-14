@@ -90,22 +90,23 @@ class CapillaService:
         return db_capilla
 
     @staticmethod
-    def agregar_imagen(db: Session, capilla_id: int, archivo: UploadFile):
+    def agregar_imagenes(db: Session, capilla_id: int, archivos: list[UploadFile]):
         db_capilla = db.get(Capilla, capilla_id)
         if not db_capilla:
             raise HTTPException(status_code=404, detail="Capilla no encontrada")
 
-        resultado = cloudinary.uploader.upload(
-            archivo.file,
-            folder="capillas",
-        )
+        for archivo in archivos:
+            resultado = cloudinary.uploader.upload(
+                archivo.file,
+                folder="capillas",
+            )
 
-        nueva_imagen = CapillaImagen(
-            capilla_id=capilla_id,
-            url=resultado["secure_url"],
-            public_id=resultado["public_id"],
-        )
-        db.add(nueva_imagen)
+            db.add(CapillaImagen(
+                capilla_id=capilla_id,
+                url=resultado["secure_url"],
+                public_id=resultado["public_id"],
+            ))
+
         db.commit()
         db.refresh(db_capilla)
         return db_capilla
