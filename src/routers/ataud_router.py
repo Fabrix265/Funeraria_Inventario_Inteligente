@@ -121,21 +121,21 @@ def cambiar_estado_ataud(
     return resultado
 
 @ataud_router.post("/{ataud_id}/imagenes", response_model=AtaudLeer, dependencies=[Depends(CheckerPermisos("ataudes:actualizar"))])
-def agregar_imagen_ataud(
+def agregar_imagenes_ataud(
     request: Request,
     ataud_id: int,
-    imagen: UploadFile = File(...),
+    imagenes: List[UploadFile] = File(...),
     db: SessionDep = None,
     token: dict = Depends(CheckerPermisos("ataudes:actualizar")),
 ):
-    resultado = AtaudService.agregar_imagen(db, ataud_id, imagen)
+    resultado = AtaudService.agregar_imagenes(db, ataud_id, imagenes)
     bitacora_service.registrar(
         db,
         usuario_id=int(token.get("sub")),
         usuario_nombre=token.get("username", ""),
         accion="agregar_imagen",
         modulo="ataudes",
-        detalle=f"Imagen agregada a ataúd #{ataud_id}",
+        detalle=f"{len(imagenes)} imagen(es) agregada(s) a ataúd #{ataud_id}",
         ip_address=request.client.host if request.client else None,
     )
     return resultado

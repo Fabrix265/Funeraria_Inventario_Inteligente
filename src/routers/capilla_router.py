@@ -118,21 +118,21 @@ def cambiar_estado_capilla(
     return resultado
 
 @capilla_router.post("/{capilla_id}/imagenes", response_model=CapillaLeer, dependencies=[Depends(CheckerPermisos("capillas:actualizar"))])
-def agregar_imagen_capilla(
+def agregar_imagenes_capilla(
     request: Request,
     capilla_id: int,
-    imagen: UploadFile = File(...),
+    imagenes: List[UploadFile] = File(...),
     db: SessionDep = None,
     token: dict = Depends(CheckerPermisos("capillas:actualizar")),
 ):
-    resultado = CapillaService.agregar_imagen(db, capilla_id, imagen)
+    resultado = CapillaService.agregar_imagenes(db, capilla_id, imagenes)
     bitacora_service.registrar(
         db,
         usuario_id=int(token.get("sub")),
         usuario_nombre=token.get("username", ""),
         accion="agregar_imagen",
         modulo="capillas",
-        detalle=f"Imagen agregada a capilla #{capilla_id}",
+        detalle=f"{len(imagenes)} imagen(es) agregada(s) a capilla #{capilla_id}",
         ip_address=request.client.host if request.client else None,
     )
     return resultado

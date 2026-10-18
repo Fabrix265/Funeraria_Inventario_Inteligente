@@ -22,3 +22,16 @@
 
 ## Levantar el backend
 *  `uvicorn src.main:app --port 8000 --reload`  
+
+## 🔐 Cifrado de archivos (Google Drive)
+Todos los archivos que se suben a Google Drive (documentos de servicio, respaldos
+`.sql` y manifiestos `.json`) se cifran con **Fernet antes de salir del backend** y
+se descifran al descargarlos.
+
+Antes de levantar el backend, define la clave en el `.env`:
+
+* `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+* Copia el resultado en la variable `ENCRYPTION_KEY` del `.env`.
+
+> Importante: los archivos subidos antes de activar el cifrado están en texto
+> plano y deberán volver a subirse; el backend espera contenido cifrado.

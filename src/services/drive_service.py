@@ -11,6 +11,7 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 
+from src.core.crypto import encriptar_bytes, desencriptar_bytes, CryptoConfigError, CryptoError
 from src.models.oauth_token import OAuthToken
 
 logger = logging.getLogger(__name__)
@@ -177,6 +178,13 @@ class GoogleDriveService:
             logger.error("No hay credenciales de Google Drive configuradas")
             return None
 
+        # Todo archivo se cifra antes de salir hacia Google Drive.
+        try:
+            contenido = encriptar_bytes(file_bytes)
+        except CryptoConfigError as error:
+            logger.error("No se pudo cifrar '%s': %s", filename, error)
+            return None
+
         try:
             service = build("drive", "v3", credentials=creds)
 
@@ -197,7 +205,7 @@ class GoogleDriveService:
             mime_type = mime_map.get(ext, "application/octet-stream")
 
             media = MediaIoBaseUpload(
-                io.BytesIO(file_bytes),
+                io.BytesIO(contenido),
                 mimetype=mime_type,
                 resumable=True,
             )
@@ -240,9 +248,16 @@ class GoogleDriveService:
             done = False
             while not done:
                 status, done = downloader.next_chunk()
-            return buffer.getvalue()
+            contenido = buffer.getvalue()
         except Exception as e:
             logger.error("Error descargando archivo de Drive: %s", str(e))
+            return None
+
+        # Los archivos viajan cifrados a Drive: se descifran al bajarlos.
+        try:
+            return desencriptar_bytes(contenido)
+        except (CryptoError, CryptoConfigError) as error:
+            logger.error("No se pudo desencriptar el archivo %s: %s", file_id, error)
             return None
 
     def eliminar_archivo(self, file_id: str) -> bool:
@@ -297,6 +312,13 @@ class GoogleDriveService:
         creds = self._obtener_credenciales()
         if not creds:
             return None
+
+        try:
+            contenido = encriptar_bytes(file_bytes)
+        except CryptoConfigError as error:
+            logger.error("No se pudo cifrar '%s': %s", filename, error)
+            return None
+
         try:
             service = build("drive", "v3", credentials=creds)
 
@@ -310,7 +332,7 @@ class GoogleDriveService:
             mime_type = mime_map.get(ext, "application/octet-stream")
 
             media = MediaIoBaseUpload(
-                io.BytesIO(file_bytes),
+                io.BytesIO(contenido),
                 mimetype=mime_type,
                 resumable=True,
             )

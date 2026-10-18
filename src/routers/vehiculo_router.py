@@ -97,21 +97,21 @@ def cambiar_estado_vehiculo(
     return resultado
 
 @vehiculo_router.post("/{vehiculo_id}/imagenes", response_model=VehiculoLeer, dependencies=[Depends(CheckerPermisos("vehiculos:actualizar"))])
-def agregar_imagen_vehiculo(
+def agregar_imagenes_vehiculo(
     request: Request,
     vehiculo_id: int,
-    imagen: UploadFile = File(...),
+    imagenes: List[UploadFile] = File(...),
     db: SessionDep = None,
     token: dict = Depends(CheckerPermisos("vehiculos:actualizar")),
 ):
-    resultado = VehiculoService.agregar_imagen(db, vehiculo_id, imagen)
+    resultado = VehiculoService.agregar_imagenes(db, vehiculo_id, imagenes)
     bitacora_service.registrar(
         db,
         usuario_id=int(token.get("sub")),
         usuario_nombre=token.get("username", ""),
         accion="agregar_imagen",
         modulo="vehiculos",
-        detalle=f"Imagen agregada a vehículo #{vehiculo_id}",
+        detalle=f"{len(imagenes)} imagen(es) agregada(s) a vehículo #{vehiculo_id}",
         ip_address=request.client.host if request.client else None,
     )
     return resultado
