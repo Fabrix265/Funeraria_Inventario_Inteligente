@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault("BITACORA_ARCHIVO_AUTO", "false")
+
 import pytest
 from fastapi.testclient import TestClient
 from src.main import app
