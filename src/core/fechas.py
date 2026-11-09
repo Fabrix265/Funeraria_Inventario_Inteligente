@@ -9,10 +9,21 @@ El corrimiento se controla con la variable ``TZ_OFFSET_HOURS`` del .env
 """
 
 import os
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Optional
 
 _OFFSET_HORA = float(os.getenv("TZ_OFFSET_HOURS", "-5"))
+
+
+def hoy_local() -> date:
+    """Fecha de hoy en la hora local configurada (TZ_OFFSET_HOURS)."""
+    return (datetime.utcnow() + timedelta(hours=_OFFSET_HORA)).date()
+
+
+def rango_utc_de_dia_local(dia: date) -> tuple[datetime, datetime]:
+    """Inicio (inclusive) y fin (exclusivo) en UTC naive del día local `dia`."""
+    inicio = datetime.combine(dia, time.min) - timedelta(hours=_OFFSET_HORA)
+    return inicio, inicio + timedelta(days=1)
 
 
 def hora_local(valor: Optional[datetime]) -> Optional[datetime]:

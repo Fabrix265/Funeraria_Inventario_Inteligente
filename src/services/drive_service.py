@@ -38,6 +38,7 @@ SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 # Estructura de carpetas dentro de GOOGLE_DRIVE_FOLDER_ID
 CARPETA_SERVICIOS = "servicios"
 CARPETA_BACKUPS = "backups"
+CARPETA_BITACORA = "bitacora"
 CARPETA_BASE_DATOS = "backups/base_datos"
 CARPETA_SNAPSHOTS = "backups/archivos"
 
@@ -199,6 +200,7 @@ class GoogleDriveService:
                 "png": "image/png",
                 "jpg": "image/jpeg",
                 "jpeg": "image/jpeg",
+                "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "doc": "application/msword",
                 "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             }
@@ -328,6 +330,7 @@ class GoogleDriveService:
                 "png": "image/png",
                 "jpg": "image/jpeg",
                 "jpeg": "image/jpeg",
+                "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             }
             mime_type = mime_map.get(ext, "application/octet-stream")
 

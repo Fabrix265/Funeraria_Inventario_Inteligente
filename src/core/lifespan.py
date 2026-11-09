@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -29,4 +31,14 @@ def inicializar_base_de_datos():
 async def lifespan(app: FastAPI):
     inicializar_base_de_datos()
 
-    yield
+    from src.services import bitacora_archivo_service
+
+    activo, intervalo = bitacora_archivo_service.configuracion()
+    tarea = asyncio.create_task(bitacora_archivo_service.bucle_programado(intervalo)) if activo else None
+    try:
+        yield
+    finally:
+        if tarea:
+            tarea.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await tarea

@@ -6,7 +6,7 @@ from io import BytesIO
 from src.deps.db_session import SessionDep
 from src.core.security import CheckerPermisos
 from src.schemas.bitacora import BitacoraRead, BitacoraListResponse
-from src.services import bitacora_service
+from src.services import bitacora_service, bitacora_archivo_service
 
 bitacora_router = APIRouter()
 
@@ -59,6 +59,36 @@ def exportar_bitacora(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
     )
+
+
+@bitacora_router.get("/archivo-diario")
+def listar_archivos_diarios(
+    db: SessionDep,
+    _token: dict = Depends(CheckerPermisos("bitacora:listar")),
+):
+    return bitacora_archivo_service.listar(db)
+
+
+@bitacora_router.get("/archivo-diario/{file_id}/descargar")
+def descargar_archivo_diario(
+    file_id: str,
+    db: SessionDep,
+    _token: dict = Depends(CheckerPermisos("bitacora:listar")),
+):
+    contenido, nombre = bitacora_archivo_service.descargar(db, file_id)
+    return StreamingResponse(
+        BytesIO(contenido),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
+@bitacora_router.post("/archivo-diario/sincronizar")
+def sincronizar_archivos_diarios(
+    db: SessionDep,
+    _token: dict = Depends(CheckerPermisos("bitacora:listar")),
+):
+    return bitacora_archivo_service.sincronizar(db)
 
 
 @bitacora_router.get("/{bitacora_id}", response_model=BitacoraRead)

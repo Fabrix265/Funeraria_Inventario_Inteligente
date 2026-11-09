@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 from io import BytesIO
 from sqlmodel import Session, select, func
 from openpyxl import Workbook
-from src.core.fechas import hora_local_texto
+from src.core.fechas import hora_local_texto, rango_utc_de_dia_local
 from src.models.bitacora import Bitacora
 
 
@@ -103,7 +103,20 @@ def exportar_excel(
         usuario_id=usuario_id, accion=accion, modulo=modulo,
     )
     registros = db.exec(query.order_by(Bitacora.created_at.desc())).all()
+    return _construir_excel(registros)
 
+
+def exportar_excel_dia(db: Session, dia: date) -> bytes:
+    inicio, fin = rango_utc_de_dia_local(dia)
+    consulta = select(Bitacora).where(
+        Bitacora.created_at >= inicio,
+        Bitacora.created_at < fin,
+    ).order_by(Bitacora.created_at.asc())
+    registros = db.exec(consulta).all()
+    return _construir_excel(registros)
+
+
+def _construir_excel(registros) -> bytes:
     wb = Workbook()
     ws = wb.active
     ws.title = "Bitacora"
